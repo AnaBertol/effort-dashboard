@@ -1,0 +1,2168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualização de Esforço - Planejamento de Projetos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #FAF9FA;
+            color: #373737;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #6F02FD;
+            font-size: 48px;
+            font-weight: 300;
+            margin-bottom: 30px;
+            letter-spacing: -2px;
+        }
+
+        .controls {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .control-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .control-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #373737;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .upload-area {
+            border: 2px dashed #6F02FD;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+            margin-bottom: 30px;
+        }
+
+        .upload-area:hover {
+            border-color: #2C0165;
+            background: #f5f3ff;
+        }
+
+        .upload-area.drag-over {
+            border-color: #2C0165;
+            background: #e8e0ff;
+        }
+
+        .upload-input {
+            display: none;
+        }
+
+        select, input[type="date"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        select:focus, input[type="date"]:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: #6F02FD;
+        }
+
+        .toggle-buttons {
+            display: flex;
+            gap: 5px;
+            background: #f0f0f0;
+            padding: 3px;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .toggle-button {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .toggle-button.active {
+            background: #6F02FD;
+            color: white;
+        }
+
+        .progress-button {
+            padding: 12px 24px;
+            background: #2C0165;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .progress-button:hover {
+            background: #6F02FD;
+        }
+
+        .visualization-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: none;
+        }
+
+        .visualization-container.active {
+            display: block;
+        }
+
+        #chart {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        .legend-item:hover {
+            opacity: 0.7;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+            max-width: 300px;
+        }
+
+        .tooltip-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #9B7EDE;
+        }
+
+        .tooltip-info {
+            margin-bottom: 3px;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-left: 4px solid #6F02FD;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 300;
+            color: #6F02FD;
+            margin-bottom: 2px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .axis text {
+            font-size: 12px;
+            fill: #666;
+        }
+
+        .axis line,
+        .axis path {
+            stroke: #ddd;
+        }
+
+        .grid line {
+            stroke: #f0f0f0;
+            stroke-dasharray: 2,2;
+        }
+
+        /* Estilos para visualização de progresso */
+        .progress-controls {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+        }
+
+        .progress-control {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .progress-control label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #373737;
+        }
+
+        .progress-control input,
+        .progress-control select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .project-card {
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            overflow: hidden;
+        }
+
+        .project-progress-bar {
+            width: 60px;
+            background: #f0f0f0;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .project-progress-bar:hover {
+            background: #e0e0e0;
+        }
+
+        .progress-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #6CDADE;
+            transition: height 0.3s ease;
+            pointer-events: none;
+        }
+
+        .progress-text {
+            position: relative;
+            z-index: 1;
+            font-weight: 600;
+            font-size: 14px;
+            color: #373737;
+            white-space: nowrap;
+        }
+
+        .progress-input-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            z-index: 1100;
+            min-width: 300px;
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1099;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #373737;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .modal-button.primary {
+            background: #6F02FD;
+            color: white;
+        }
+
+        .modal-button.secondary {
+            background: #ddd;
+            color: #373737;
+        }
+
+        .project-content {
+            flex: 1;
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .project-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #373737;
+        }
+
+        .project-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
+            align-items: center;
+        }
+
+        .effort-adjustment {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f5f5f5;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        .effort-adjustment label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #373737;
+        }
+
+        .effort-adjustment input {
+            width: 60px;
+            padding: 4px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .timeline-chart {
+            margin-top: 10px;
+            height: 130px;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .month-bar {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .month-bar:hover {
+            opacity: 0.8;
+        }
+
+        .control-button.secondary {
+            padding: 8px; 
+            font-size: 13px;
+            background: #666;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 10px; 
+            width: 100%;
+        }
+
+        .control-button.secondary:hover {
+            background: #888;
+        }
+
+
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Visualização de Esforço</h1>
+
+        <div class="upload-area" id="uploadArea">
+            <input type="file" id="fileInput" class="upload-input" accept=".csv">
+            <div style="font-size: 20px; color: #6F02FD; margin-bottom: 10px;">📊 Carregar arquivo CSV</div>
+            <div style="font-size: 14px; color: #666;">Arraste o arquivo aqui ou clique para selecionar</div>
+        </div>
+
+        <button class="progress-button" id="progressViewBtn" onclick="toggleProgressView()" style="display: none;">
+            📈 Visualizar Progresso por Projeto
+        </button>
+
+        <div class="controls" id="controls" style="display: none;">
+            <div class="control-group">
+                <label class="control-label">Tipo de Visualização</label>
+                <div class="toggle-buttons">
+                    <button class="toggle-button active" id="stackedBtn" onclick="setVisualizationType('stacked')">Barras Empilhadas</button>
+                    <button class="toggle-button" id="separateBtn" onclick="setVisualizationType('separate')">Gráficos Separados</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">Agrupar por</label>
+                <div class="toggle-buttons">
+                    <button class="toggle-button active" id="typeBtn" onclick="setGroupingCategory('type')">Por Tipo</button>
+                    <button class="toggle-button" id="assigneeBtn" onclick="setGroupingCategory('assignee')">Por Pessoa</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">Período</label>
+                <div class="toggle-buttons">
+                    <button class="toggle-button" id="dayBtn" onclick="setGrouping('day')">Por Dia</button>
+                    <button class="toggle-button active" id="weekBtn" onclick="setGrouping('week')">Por Semana</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">Intervalo de Datas</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="date" id="startDate" onchange="updateDateRange()">
+                    <input type="date" id="endDate" onchange="updateDateRange()">
+                </div>
+                <button class="control-button secondary" onclick="resetDateRange()" id="resetDateBtn">
+                    Mostrar Período Completo
+                </button>
+            </div>
+        </div>
+
+        <div class="progress-controls" id="progressControls" style="display: none;">
+            <div class="progress-control">
+                <label>Mês de Referência:</label>
+                <select id="referenceMonth" onchange="updateProgressCalculations()"></select>
+            </div>
+            <button class="progress-button" onclick="toggleProgressView()">
+                ← Voltar
+            </button>
+        </div>
+
+        <div class="summary-stats" id="summaryStats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-value" id="avgDaily">0</div>
+                <div class="stat-label">Média Diária</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="peakEffort">0</div>
+                <div class="stat-label">Pico de Esforço</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="activeItems">0</div>
+                <div class="stat-label" id="activeItemsLabel">Projetos Ativos</div>
+            </div>
+        </div>
+
+        <div class="visualization-container" id="visualizationContainer">
+            <div class="legend" id="legend"></div>
+            <div id="chart"></div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // Variáveis globais
+        let tasksData = [];
+        let processedData = [];
+        let projectProgressData = [];
+        let currentVisualizationType = 'stacked';
+        let currentGrouping = 'week';
+        let currentGroupingCategory = 'type';
+        let highlightedProject = null;
+        let selectedProject = null;
+        let originalDateRange = { start: null, end: null };
+        let progressMode = false;
+        let referenceMonth = null;
+        let projectRemainingPercentages = {};
+        
+        // Cores por tipo - CORRIGIDAS
+        const typeColors = {
+            'Graphic Design': '#6CDADE',
+            'Data Analysis & Dataviz': '#6F02FD',
+            'Development & Tech': '#3570DF',
+            'Strategic Consulting': '#666666',     // Cinza
+            'Project Management': '#EDFF19',       // Amarelo
+            'UX & UI Design': '#FFA4E8'           // Rosa
+        };
+
+        // Cores para pessoas
+        let assigneeColors = {};
+        const assigneeColorPalette = [
+            '#6F02FD', '#3570DF', '#6CDADE', '#FFA4E8', '#2C0165', 
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#F7DC6F', '#BB8FCE',
+            '#52BE80', '#F39C12', '#E74C3C', '#3498DB', '#9B59B6'
+        ];
+
+        // Configurar upload
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // Processar arquivo
+        function handleFile(file) {
+            if (!file.name.endsWith('.csv')) {
+                alert('Por favor, selecione um arquivo CSV');
+                return;
+            }
+
+            Papa.parse(file, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    tasksData = results.data.filter(row => row.Task && row['Due Date'] && row.Effort);
+                    if (tasksData.length === 0) {
+                        alert('Nenhuma tarefa válida encontrada');
+                        return;
+                    }
+                    initializeVisualization();
+                },
+                error: function(error) {
+                    alert('Erro ao ler o arquivo: ' + error.message);
+                }
+            });
+        }
+
+        // Inicializar visualização
+        function initializeVisualization() {
+            // Processar datas
+            tasksData.forEach(task => {
+                task.endDate = new Date(task['Due Date']);
+                task.startDate = task.Start ? new Date(task.Start) : new Date(task.endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+                
+                // Calcular dias de duração
+                const daysDiff = Math.ceil((task.endDate - task.startDate) / (1000 * 60 * 60 * 24)) + 1;
+                task.effortPerDay = task.Effort / daysDiff;
+                
+                // Processar status de conclusão
+                task.Completed = task.Completed === true || task.Completed === 'TRUE' || task.Completed === 1;
+            });
+
+            // Atribuir cores para pessoas
+            const uniqueAssignees = [...new Set(tasksData.map(t => t.Assignee || 'Não atribuído'))];
+            uniqueAssignees.forEach((assignee, index) => {
+                assigneeColors[assignee] = assigneeColorPalette[index % assigneeColorPalette.length];
+            });
+
+            // Encontrar range de datas
+            const allDates = tasksData.flatMap(t => [t.startDate, t.endDate]);
+            const minDate = new Date(Math.min(...allDates));
+            const maxDate = new Date(Math.max(...allDates));
+
+            // Configurar controles
+            document.getElementById('startDate').value = minDate.toISOString().split('T')[0];
+            document.getElementById('endDate').value = maxDate.toISOString().split('T')[0];
+
+            // Salvar período original
+            originalDateRange.start = minDate.toISOString().split('T')[0];
+            originalDateRange.end = maxDate.toISOString().split('T')[0];
+
+            // Mostrar controles
+            document.getElementById('controls').style.display = 'flex';
+            document.getElementById('summaryStats').style.display = 'grid';
+            document.getElementById('visualizationContainer').classList.add('active');
+            document.getElementById('progressViewBtn').style.display = 'block';
+
+            // Processar e visualizar
+            processData();
+            updateVisualization();
+        }
+
+        // Toggle visualização de progresso
+        function toggleProgressView() {
+            progressMode = !progressMode;
+            
+            if (progressMode) {
+                // Esconder controles principais e mostrar controles de progresso
+                document.getElementById('controls').style.display = 'none';
+                document.getElementById('summaryStats').style.display = 'none';
+                document.getElementById('progressControls').style.display = 'flex';
+                document.getElementById('progressViewBtn').style.display = 'none';
+                
+                // Inicializar controles de progresso
+                initializeProgressControls();
+                
+                // Mostrar visualização de progresso
+                updateVisualization();
+            } else {
+                // Voltar para visualização normal
+                document.getElementById('controls').style.display = 'flex';
+                document.getElementById('summaryStats').style.display = 'grid';
+                document.getElementById('progressControls').style.display = 'none';
+                document.getElementById('progressViewBtn').style.display = 'block';
+                
+                updateVisualization();
+            }
+        }
+
+        // Inicializar controles de progresso - CORRIGIDO
+        function initializeProgressControls() {
+            const monthSelect = document.getElementById('referenceMonth');
+            monthSelect.innerHTML = '';
+            
+            // Obter todos os meses únicos das tarefas
+            const months = new Set();
+            const today = new Date();
+            today.setDate(1);
+            today.setHours(0, 0, 0, 0);
+            
+            tasksData.forEach(task => {
+                // CORRIGIDO: usar getMonth() diretamente, sem criar nova Data
+                const startYear = task.startDate.getFullYear();
+                const startMonth = task.startDate.getMonth();
+                const endYear = task.endDate.getFullYear();
+                const endMonth = task.endDate.getMonth();
+                
+                // Iterar mês por mês usando números, não objetos Date
+                let currentYear = startYear;
+                let currentMonth = startMonth;
+                
+                while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+                    const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+                    months.add(monthKey);
+                    
+                    currentMonth++;
+                    if (currentMonth > 11) {
+                        currentMonth = 0;
+                        currentYear++;
+                    }
+                }
+            });
+            
+            // Ordenar e adicionar ao select
+            const sortedMonths = Array.from(months).sort();
+            sortedMonths.forEach(month => {
+                const option = document.createElement('option');
+                option.value = month;
+                // CORRIGIDO: parsing manual para evitar offset
+                const [year, monthNum] = month.split('-');
+                const date = new Date(year, parseInt(monthNum) - 1, 1);
+                option.textContent = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                monthSelect.appendChild(option);
+            });
+            
+            // Selecionar o mês atual ou o primeiro mês futuro
+            const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+            if (sortedMonths.includes(currentMonthKey)) {
+                monthSelect.value = currentMonthKey;
+            } else {
+                // Encontrar o primeiro mês futuro
+                const futureMonth = sortedMonths.find(m => m >= currentMonthKey);
+                if (futureMonth) {
+                    monthSelect.value = futureMonth;
+                } else if (sortedMonths.length > 0) {
+                    monthSelect.value = sortedMonths[0];
+                }
+            }
+            
+            if (monthSelect.options.length > 0) {
+                referenceMonth = monthSelect.value;
+                updateProgressCalculations();
+            }
+        }
+
+        // Atualizar cálculos de progresso
+        function updateProgressCalculations() {
+            referenceMonth = document.getElementById('referenceMonth').value;
+            
+            // Processar dados com novo mês de referência
+            processData();
+            updateVisualization();
+        }
+
+        // Processar dados
+        function processData() {
+            const startDate = new Date(document.getElementById('startDate').value);
+            const endDate = new Date(document.getElementById('endDate').value);
+            
+            // Criar estrutura de dados por período
+            const dataByPeriod = {};
+            
+            // Iterar por cada dia no range
+            const currentDate = new Date(startDate);
+            while (currentDate <= endDate) {
+                const dateKey = currentDate.toISOString().split('T')[0];
+                dataByPeriod[dateKey] = {
+                    date: new Date(currentDate),
+                    byType: {},
+                    byAssignee: {},
+                    byProject: {},
+                    total: 0
+                };
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            // Distribuir esforço das tarefas
+            tasksData.forEach(task => {
+                const taskStart = new Date(Math.max(task.startDate, startDate));
+                const taskEnd = new Date(Math.min(task.endDate, endDate));
+                
+                if (taskStart <= taskEnd) {
+                    const currentDate = new Date(taskStart);
+                    while (currentDate <= taskEnd) {
+                        const dateKey = currentDate.toISOString().split('T')[0];
+                        if (dataByPeriod[dateKey]) {
+                            // Por tipo
+                            if (!dataByPeriod[dateKey].byType[task.Type]) {
+                                dataByPeriod[dateKey].byType[task.Type] = {
+                                    effort: 0,
+                                    tasks: []
+                                };
+                            }
+                            dataByPeriod[dateKey].byType[task.Type].effort += task.effortPerDay;
+                            dataByPeriod[dateKey].byType[task.Type].tasks.push({
+                                name: task.Task,
+                                project: task.Project,
+                                assignee: task.Assignee || 'Não atribuído',
+                                effort: task.effortPerDay
+                            });
+
+                            // Por pessoa
+                            const assignee = task.Assignee || 'Não atribuído';
+                            if (!dataByPeriod[dateKey].byAssignee[assignee]) {
+                                dataByPeriod[dateKey].byAssignee[assignee] = {
+                                    effort: 0,
+                                    tasks: []
+                                };
+                            }
+                            dataByPeriod[dateKey].byAssignee[assignee].effort += task.effortPerDay;
+                            dataByPeriod[dateKey].byAssignee[assignee].tasks.push({
+                                name: task.Task,
+                                project: task.Project,
+                                type: task.Type,
+                                effort: task.effortPerDay
+                            });
+
+                            // Por projeto
+                            if (!dataByPeriod[dateKey].byProject[task.Project]) {
+                                dataByPeriod[dateKey].byProject[task.Project] = {
+                                    effort: 0,
+                                    types: {},
+                                    assignees: {}
+                                };
+                            }
+                            dataByPeriod[dateKey].byProject[task.Project].effort += task.effortPerDay;
+                            
+                            if (!dataByPeriod[dateKey].byProject[task.Project].types[task.Type]) {
+                                dataByPeriod[dateKey].byProject[task.Project].types[task.Type] = 0;
+                            }
+                            dataByPeriod[dateKey].byProject[task.Project].types[task.Type] += task.effortPerDay;
+
+                            if (!dataByPeriod[dateKey].byProject[task.Project].assignees[assignee]) {
+                                dataByPeriod[dateKey].byProject[task.Project].assignees[assignee] = 0;
+                            }
+                            dataByPeriod[dateKey].byProject[task.Project].assignees[assignee] += task.effortPerDay;
+
+                            dataByPeriod[dateKey].total += task.effortPerDay;
+                        }
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+                }
+            });
+
+            // Agrupar por semana se necessário
+            if (currentGrouping === 'week') {
+                processedData = groupByWeek(dataByPeriod);
+            } else {
+                processedData = Object.values(dataByPeriod);
+            }
+
+            // Processar dados de progresso por projeto
+            processProjectProgress();
+
+            updateSummaryStats();
+        }
+
+        // Processar progresso dos projetos - CORRIGIDO para evitar offset de mês
+        function processProjectProgress() {
+            const projects = {};
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // Agrupar tarefas por projeto
+            tasksData.forEach(task => {
+                if (!projects[task.Project]) {
+                    projects[task.Project] = {
+                        name: task.Project,
+                        totalEffort: 0,
+                        completedEffort: 0,
+                        remainingEffort: 0,
+                        tasks: [],
+                        completedTasks: [],
+                        pendingTasks: [],
+                        monthlyDistribution: {},
+                        remainingPercentage: null
+                    };
+                }
+
+                projects[task.Project].tasks.push(task);
+                projects[task.Project].totalEffort += task.Effort;
+
+                if (task.Completed) {
+                    projects[task.Project].completedTasks.push(task);
+                    projects[task.Project].completedEffort += task.Effort;
+                } else {
+                    projects[task.Project].pendingTasks.push(task);
+                    projects[task.Project].remainingEffort += task.Effort;
+                }
+            });
+
+            // Calcular distribuição mensal para cada projeto - CORRIGIDO
+            Object.values(projects).forEach(project => {
+                console.log(`\n=== Processando projeto: ${project.name} ===`);
+                
+                // Encontrar período do projeto
+                const projectDates = project.tasks.flatMap(t => [t.startDate, t.endDate]);
+                const projectStart = new Date(Math.min(...projectDates));
+                const projectEnd = new Date(Math.max(...projectDates));
+                
+                console.log(`Período do projeto: ${projectStart.toISOString().split('T')[0]} até ${projectEnd.toISOString().split('T')[0]}`);
+                
+                // CORRIGIDO: Criar estrutura mensal usando números em vez de objetos Date
+                const startYear = projectStart.getFullYear();
+                const startMonth = projectStart.getMonth();
+                const endYear = projectEnd.getFullYear();
+                const endMonth = projectEnd.getMonth();
+                
+                console.log(`Meses a criar: ${startYear}-${startMonth + 1} até ${endYear}-${endMonth + 1}`);
+                
+                let currentYear = startYear;
+                let currentMonth = startMonth;
+                
+                while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+                    const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+                    project.monthlyDistribution[monthKey] = {
+                        total: 0,
+                        completed: 0,
+                        remaining: 0
+                    };
+                    console.log(`Criado mês: ${monthKey}`);
+                    
+                    currentMonth++;
+                    if (currentMonth > 11) {
+                        currentMonth = 0;
+                        currentYear++;
+                    }
+                }
+                
+                // Distribuir esforço por mês - CORRIGIDO: usar getMonth() diretamente
+                project.tasks.forEach(task => {
+                    console.log(`\nProcessando tarefa: ${task.Task}`);
+                    console.log(`  Período: ${task.startDate.toISOString().split('T')[0]} até ${task.endDate.toISOString().split('T')[0]}`);
+                    console.log(`  Esforço total: ${task.Effort}`);
+                    
+                    // Distribuir esforço dia a dia
+                    const currentDate = new Date(task.startDate);
+                    const totalDays = Math.ceil((task.endDate - task.startDate) / (1000 * 60 * 60 * 24)) + 1;
+                    const effortPerDay = task.Effort / totalDays;
+                    
+                    console.log(`  Dias totais: ${totalDays}, Esforço por dia: ${effortPerDay.toFixed(2)}`);
+                    
+                    while (currentDate <= task.endDate) {
+                        // CORRIGIDO: usar getMonth() diretamente
+                        const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                        
+                        if (project.monthlyDistribution[monthKey]) {
+                            project.monthlyDistribution[monthKey].total += effortPerDay;
+                            if (task.Completed) {
+                                project.monthlyDistribution[monthKey].completed += effortPerDay;
+                            } else {
+                                project.monthlyDistribution[monthKey].remaining += effortPerDay;
+                            }
+                        } else {
+                            console.warn(`  AVISO: Mês ${monthKey} não encontrado na distribuição!`);
+                        }
+                        
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+                });
+                
+                // Debug: mostrar distribuição final
+                console.log('\nDistribuição mensal final:');
+                Object.entries(project.monthlyDistribution)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .forEach(([month, dist]) => {
+                        if (dist.total > 0) {
+                            console.log(`  ${month}: total=${dist.total.toFixed(1)}, concluído=${dist.completed.toFixed(1)}, restante=${dist.remaining.toFixed(1)}`);
+                        }
+                    });
+                
+                // Calcular percentuais
+                project.completedPercentage = project.totalEffort > 0 
+                    ? (project.completedEffort / project.totalEffort) * 100 
+                    : 0;
+                    
+                // Aplicar percentual restante se em modo de progresso
+                if (progressMode && referenceMonth) {
+                    const remainingPercentage = projectRemainingPercentages[project.name];
+                    
+                    if (remainingPercentage !== null && remainingPercentage !== undefined) {
+                        project.remainingPercentage = remainingPercentage;
+                        
+                        // Calcular novo total baseado no percentual restante
+                        const remainingFromReference = calculateRemainingFromReference(project, referenceMonth);
+                        
+                        if (remainingFromReference > 0 && remainingPercentage > 0) {
+                            const impliedTotal = (remainingFromReference / remainingPercentage) * 100;
+                            project.totalEffortAdjusted = impliedTotal;
+                            project.completedPercentageAdjusted = (project.completedEffort / impliedTotal) * 100;
+                        } else if (remainingPercentage === 0) {
+                            project.completedPercentageAdjusted = 100;
+                        }
+                    } else {
+                        // Calcular percentual padrão
+                        const remainingFromReference = calculateRemainingFromReference(project, referenceMonth);
+                        project.remainingPercentage = project.totalEffort > 0 
+                            ? Math.round((remainingFromReference / project.totalEffort) * 100)
+                            : 0;
+                        projectRemainingPercentages[project.name] = project.remainingPercentage;
+                    }
+                }
+            });
+
+            projectProgressData = Object.values(projects).sort((a, b) => b.totalEffort - a.totalEffort);
+        }
+
+        // Calcular esforço restante a partir do mês de referência - CORRIGIDO
+        function calculateRemainingFromReference(project, referenceMonth) {
+            console.log(`\nCalculando esforço restante para ${project.name} a partir de ${referenceMonth}`);
+            
+            let remaining = 0;
+            
+            // Somar esforço restante de todos os meses >= referenceMonth
+            Object.entries(project.monthlyDistribution).forEach(([month, dist]) => {
+                if (month >= referenceMonth) {
+                    remaining += dist.remaining;
+                    console.log(`  ${month}: +${dist.remaining.toFixed(1)} pts (remaining)`);
+                }
+            });
+            
+            console.log(`  Total restante: ${remaining.toFixed(1)} pts`);
+            return remaining;
+        }
+
+        // Abrir modal de input de percentual
+        function openPercentageModal(projectName) {
+            const project = projectProgressData.find(p => p.name === projectName);
+            if (!project) return;
+            
+            // Criar modal
+            const modalBackdrop = document.createElement('div');
+            modalBackdrop.className = 'modal-backdrop';
+            
+            const modal = document.createElement('div');
+            modal.className = 'progress-input-modal';
+            
+            // Usar o valor completo em vez do restante
+            const completedPercentage = project.remainingPercentage !== null && project.remainingPercentage !== undefined
+                ? 100 - project.remainingPercentage
+                : Math.round(project.completedPercentage);
+            
+            modal.innerHTML = `
+                <div class="modal-title">Progresso Realizado - ${projectName}</div>
+                <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                    Informe quanto % do projeto já foi realizado:
+                </p>
+                <input type="number" class="modal-input" id="modalPercentageInput" 
+                       value="${completedPercentage}" min="0" max="100" step="1">
+                <p style="margin-bottom: 20px; color: #666; font-size: 12px;">
+                    Esforço já concluído: ${Math.round(project.completedEffort)} pontos<br>
+                    Esforço restante: ${Math.round(calculateRemainingFromReference(project, referenceMonth))} pontos
+                </p>
+                <div class="modal-buttons">
+                    <button class="modal-button secondary" onclick="closePercentageModal()">Cancelar</button>
+                    <button class="modal-button primary" onclick="savePercentage('${projectName}')">Salvar</button>
+                </div>
+            `;
+            
+            document.body.appendChild(modalBackdrop);
+            document.body.appendChild(modal);
+            
+            // Focar no input
+            document.getElementById('modalPercentageInput').focus();
+            document.getElementById('modalPercentageInput').select();
+        }
+
+        // Fechar modal
+        function closePercentageModal() {
+            const modal = document.querySelector('.progress-input-modal');
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (modal) modal.remove();
+            if (backdrop) backdrop.remove();
+        }
+
+        // Salvar percentual
+        function savePercentage(projectName) {
+            const input = document.getElementById('modalPercentageInput');
+            const completedPercentage = parseFloat(input.value) || 0;
+            
+            // Converter para percentual restante
+            const remainingPercentage = 100 - completedPercentage;
+            
+            projectRemainingPercentages[projectName] = remainingPercentage;
+            closePercentageModal();
+            
+            // Reprocessar dados
+            processData();
+            updateVisualization();
+        }
+
+        // Agrupar por semana
+        function groupByWeek(dailyData) {
+            const weeklyData = [];
+            const weeks = {};
+
+            Object.entries(dailyData).forEach(([dateKey, data]) => {
+                const weekStart = getWeekStart(data.date);
+                const weekKey = weekStart.toISOString().split('T')[0];
+
+                if (!weeks[weekKey]) {
+                    weeks[weekKey] = {
+                        date: weekStart,
+                        byType: {},
+                        byAssignee: {},
+                        byProject: {},
+                        total: 0,
+                        days: 0
+                    };
+                }
+
+                // Somar esforços
+                Object.entries(data.byType).forEach(([type, typeData]) => {
+                    if (!weeks[weekKey].byType[type]) {
+                        weeks[weekKey].byType[type] = {
+                            effort: 0,
+                            tasks: []
+                        };
+                    }
+                    weeks[weekKey].byType[type].effort += typeData.effort;
+                    weeks[weekKey].byType[type].tasks.push(...typeData.tasks);
+                });
+
+                Object.entries(data.byAssignee).forEach(([assignee, assigneeData]) => {
+                    if (!weeks[weekKey].byAssignee[assignee]) {
+                        weeks[weekKey].byAssignee[assignee] = {
+                            effort: 0,
+                            tasks: []
+                        };
+                    }
+                    weeks[weekKey].byAssignee[assignee].effort += assigneeData.effort;
+                    weeks[weekKey].byAssignee[assignee].tasks.push(...assigneeData.tasks);
+                });
+
+                Object.entries(data.byProject).forEach(([project, projectData]) => {
+                    if (!weeks[weekKey].byProject[project]) {
+                        weeks[weekKey].byProject[project] = {
+                            effort: 0,
+                            types: {},
+                            assignees: {}
+                        };
+                    }
+                    weeks[weekKey].byProject[project].effort += projectData.effort;
+                    
+                    Object.entries(projectData.types).forEach(([type, effort]) => {
+                        if (!weeks[weekKey].byProject[project].types[type]) {
+                            weeks[weekKey].byProject[project].types[type] = 0;
+                        }
+                        weeks[weekKey].byProject[project].types[type] += effort;
+                    });
+
+                    Object.entries(projectData.assignees).forEach(([assignee, effort]) => {
+                        if (!weeks[weekKey].byProject[project].assignees[assignee]) {
+                            weeks[weekKey].byProject[project].assignees[assignee] = 0;
+                        }
+                        weeks[weekKey].byProject[project].assignees[assignee] += effort;
+                    });
+                });
+
+                weeks[weekKey].total += data.total;
+                weeks[weekKey].days++;
+            });
+
+            return Object.values(weeks).sort((a, b) => a.date - b.date);
+        }
+
+        // Obter início da semana
+        function getWeekStart(date) {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            return new Date(d.setDate(diff));
+        }
+
+        // Atualizar estatísticas
+        function updateSummaryStats() {
+            const totalEffort = processedData.reduce((sum, d) => sum + d.total, 0);
+            const avgDaily = totalEffort / processedData.length;
+            const peakEffort = Math.max(...processedData.map(d => d.total));
+            
+            let activeItems;
+            let labelText;
+            
+            if (currentGroupingCategory === 'type') {
+                activeItems = new Set(tasksData.map(t => t.Project)).size;
+                labelText = 'Projetos Ativos';
+            } else {
+                activeItems = new Set(tasksData.map(t => t.Assignee || 'Não atribuído')).size;
+                labelText = 'Pessoas Ativas';
+            }
+
+            document.getElementById('avgDaily').textContent = Math.round(avgDaily);
+            document.getElementById('peakEffort').textContent = Math.round(peakEffort);
+            document.getElementById('activeItems').textContent = activeItems;
+            document.getElementById('activeItemsLabel').textContent = labelText;
+        }
+
+        // Atualizar visualização
+        function updateVisualization() {
+            const chartDiv = document.getElementById('chart');
+            chartDiv.innerHTML = '';
+
+            if (progressMode) {
+                drawProgressView();
+            } else if (currentVisualizationType === 'stacked') {
+                drawStackedChart();
+            } else {
+                drawSeparateCharts();
+            }
+
+            updateLegend();
+        }
+
+        // Desenhar visualização de progresso - CORRIGIDO E SEM DEBUG
+        function drawProgressView() {
+            const container = d3.select('#chart');
+            
+            // Criar timeline unificada a partir do mês de referência - TODOS OS PROJETOS
+            const allMonths = new Set();
+            projectProgressData.forEach(project => {
+                Object.keys(project.monthlyDistribution).forEach(month => {
+                    if (month >= referenceMonth) {
+                        allMonths.add(month);
+                    }
+                });
+            });
+            
+            const globalMonths = Array.from(allMonths).sort();
+            
+            // Criar cards de projeto
+            projectProgressData.forEach(project => {
+                const projectCard = container.append('div')
+                    .attr('class', 'project-card');
+
+                // Barra de progresso vertical (clicável)
+                const progressBar = projectCard.append('div')
+                    .attr('class', 'project-progress-bar')
+                    .on('click', () => openPercentageModal(project.name));
+
+                const remainingPercentage = project.remainingPercentage || 0;
+                const completedPercentage = 100 - remainingPercentage;
+                
+                progressBar.append('div')
+                    .attr('class', 'progress-fill')
+                    .style('height', completedPercentage + '%');
+
+                progressBar.append('div')
+                    .attr('class', 'progress-text')
+                    .text(Math.round(completedPercentage) + '%');
+
+                // Conteúdo do projeto
+                const content = projectCard.append('div')
+                    .attr('class', 'project-content');
+
+                // Header
+                const header = content.append('div')
+                    .attr('class', 'project-header');
+
+                header.append('div')
+                    .attr('class', 'project-name')
+                    .text(project.name);
+
+                const stats = header.append('div')
+                    .attr('class', 'project-stats');
+
+                const totalEffort = project.totalEffortAdjusted || project.totalEffort;
+                stats.append('span')
+                    .text(`Total: ${Math.round(totalEffort)} pts`);
+
+                stats.append('span')
+                    .text(`Concluído: ${Math.round(project.completedEffort)} pts`);
+
+                stats.append('span')
+                    .text(`Realizado: ${100 - (project.remainingPercentage || 100)}%`);
+
+                // Timeline chart - AGORA COM ESCALA GLOBAL
+                drawProjectTimeline(content, project, globalMonths);
+            });
+        }
+
+        // Desenhar timeline do projeto - CORRIGIDO COM ESCALA GLOBAL
+        function drawProjectTimeline(container, project, globalMonths) {
+            // Filtrar apenas os meses que este projeto tem dados A PARTIR do mês de referência
+            const projectMonthsWithData = [];
+            Object.entries(project.monthlyDistribution).forEach(([month, dist]) => {
+                if (month >= referenceMonth && dist.remaining > 0) {
+                    projectMonthsWithData.push(month);
+                }
+            });
+            projectMonthsWithData.sort();
+            
+            console.log(`\n=== Timeline para ${project.name} ===`);
+            console.log('Meses com dados restantes:', projectMonthsWithData);
+            
+            // Se não há dados futuros, mostrar mensagem
+            if (projectMonthsWithData.length === 0) {
+                container.append('p')
+                    .style('padding', '20px')
+                    .style('color', '#666')
+                    .style('font-style', 'italic')
+                    .text('Sem atividades futuras a partir do mês de referência');
+                return;
+            }
+
+            const margin = {top: 10, right: 20, bottom: 5, left: 20};
+            const minWidth = 800; // Largura mínima para garantir legibilidade
+            const monthWidth = Math.max(80, minWidth / Math.max(globalMonths.length, 1)); // Largura mínima por mês
+            const width = Math.max(minWidth, monthWidth * globalMonths.length) - margin.left - margin.right;
+            const height = 100 - margin.top - margin.bottom;
+
+            const svg = container.append('svg')
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom)
+                .attr('class', 'timeline-chart')
+                .style('min-width', (width + margin.left + margin.right) + 'px');
+
+            const g = svg.append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+
+            // Preparar dados com percentuais
+            const remainingPercentage = project.remainingPercentage || 0;
+            
+            // Calcular o total de esforço restante REAL
+            let totalRemainingEffort = 0;
+            projectMonthsWithData.forEach(month => {
+                totalRemainingEffort += project.monthlyDistribution[month].remaining;
+            });
+            
+            console.log(`Total de esforço restante: ${totalRemainingEffort.toFixed(1)} pts`);
+            
+            // Calcular o total implícito baseado no percentual informado
+            const impliedTotal = remainingPercentage > 0 ? (totalRemainingEffort / remainingPercentage) * 100 : totalRemainingEffort;
+            console.log(`Total implícito do projeto: ${impliedTotal.toFixed(1)} pts (${remainingPercentage}% restante)`);
+            
+            // Mapear TODOS os meses globais, preenchendo com 0 os que não têm dados
+            const monthlyData = globalMonths.map(month => {
+                const dist = project.monthlyDistribution[month];
+                
+                let percentageRemaining = 0;
+                let percentageCompleted = 0;
+                let effortRemaining = 0;
+                let effortCompleted = 0;
+                
+                if (dist) {
+                    effortRemaining = dist.remaining || 0;
+                    effortCompleted = dist.completed || 0;
+                    
+                    if (impliedTotal > 0) {
+                        percentageRemaining = (effortRemaining / impliedTotal) * 100;
+                        percentageCompleted = (effortCompleted / impliedTotal) * 100;
+                    }
+                }
+                
+                if (effortRemaining > 0 || effortCompleted > 0) {
+                    console.log(`  ${month}: restante=${percentageRemaining.toFixed(1)}% (${effortRemaining.toFixed(1)} pts), concluído=${percentageCompleted.toFixed(1)}% (${effortCompleted.toFixed(1)} pts)`);
+                }
+                
+                return {
+                    month: month,
+                    percentageRemaining: percentageRemaining,
+                    percentageCompleted: percentageCompleted,
+                    effortRemaining: effortRemaining,
+                    effortCompleted: effortCompleted,
+                    totalPercentage: percentageRemaining + percentageCompleted,
+                    totalEffort: effortRemaining + effortCompleted
+                };
+            });
+
+            // Escalas - USAR TODOS OS MESES GLOBAIS PARA CONSISTÊNCIA
+            const x = d3.scaleBand()
+                .domain(globalMonths)
+                .range([0, width])
+                .padding(0.1);
+
+            // Calcular escala Y máxima global para todos os projetos
+            let globalMaxPercentage = 0;
+            projectProgressData.forEach(proj => {
+                const projRemainingPercentage = proj.remainingPercentage || 0;
+                let projTotalRemaining = 0;
+                let projTotalCompleted = 0;
+                
+                Object.entries(proj.monthlyDistribution).forEach(([month, dist]) => {
+                    if (month >= referenceMonth) {
+                        projTotalRemaining += dist.remaining || 0;
+                        projTotalCompleted += dist.completed || 0;
+                    }
+                });
+                
+                const projImpliedTotal = projRemainingPercentage > 0 ? (projTotalRemaining / projRemainingPercentage) * 100 : (projTotalRemaining + projTotalCompleted);
+                
+                Object.entries(proj.monthlyDistribution).forEach(([month, dist]) => {
+                    if (month >= referenceMonth && projImpliedTotal > 0) {
+                        const monthTotalPercentage = ((dist.remaining || 0) + (dist.completed || 0)) / projImpliedTotal * 100;
+                        globalMaxPercentage = Math.max(globalMaxPercentage, monthTotalPercentage);
+                    }
+                });
+            });
+
+            const y = d3.scaleLinear()
+                .domain([0, Math.max(globalMaxPercentage * 1.1, 5)])
+                .range([height, 0]);
+
+            // Eixo X - Formatação similar à visualização principal
+            g.append('g')
+                .attr('class', 'axis')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x)
+                    .tickFormat(d => {
+                        // Usar UTC para evitar problemas de timezone - apenas mês
+                        const [year, month] = d.split('-');
+                        const date = new Date(year, parseInt(month) - 1, 1);
+                        return date.toLocaleDateString('pt-BR', { month: 'short' });
+                    })
+                )
+                .selectAll('text')
+                .style('font-weight', 'bold')
+                .style('font-size', '12px')
+                .style('fill', '#373737');
+
+            // Barras empilhadas corretamente (concluído na base + restante empilhado acima)
+            const bars = g.selectAll('.month-bar')
+                .data(monthlyData)
+                .enter().append('g');
+
+            // Barra de esforço concluído (base, em turquesa)
+            bars.append('rect')
+                .attr('class', 'month-bar-completed')
+                .attr('x', d => x(d.month))
+                .attr('y', d => y(d.percentageCompleted)) // Da linha do concluído até a base
+                .attr('width', x.bandwidth())
+                .attr('height', d => height - y(d.percentageCompleted)) // Altura do concluído
+                .attr('fill', '#6CDADE') // Turquesa
+                .attr('opacity', d => d.effortCompleted > 0 ? 0.8 : 0)
+                .on('mouseover', function(event, d) {
+                    if (d.totalEffort > 0) {
+                        const tooltip = document.getElementById('tooltip');
+                        const [year, month] = d.month.split('-');
+                        const date = new Date(year, parseInt(month) - 1, 1);
+                        tooltip.innerHTML = `
+                            <div class="tooltip-title">${date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</div>
+                            <div class="tooltip-info">Total: ${d.totalPercentage.toFixed(1)}% (${Math.round(d.totalEffort)} pts)</div>
+                            <div class="tooltip-info">Concluído: ${d.percentageCompleted.toFixed(1)}% (${Math.round(d.effortCompleted)} pts)</div>
+                            <div class="tooltip-info">Restante: ${d.percentageRemaining.toFixed(1)}% (${Math.round(d.effortRemaining)} pts)</div>
+                        `;
+                        tooltip.style.display = 'block';
+                        tooltip.style.left = (event.pageX + 10) + 'px';
+                        tooltip.style.top = (event.pageY - 10) + 'px';
+                    }
+                })
+                .on('mouseout', function() {
+                    document.getElementById('tooltip').style.display = 'none';
+                });
+
+            // Barra de esforço restante (empilhada acima da turquesa, em roxo)
+            bars.append('rect')
+                .attr('class', 'month-bar-remaining') 
+                .attr('x', d => x(d.month))
+                .attr('y', d => y(d.totalPercentage)) // Do topo total até onde termina o concluído
+                .attr('width', x.bandwidth())
+                .attr('height', d => y(d.percentageCompleted) - y(d.totalPercentage)) // Diferença entre total e concluído
+                .attr('fill', '#6F02FD') // Roxo principal
+                .attr('opacity', d => d.effortRemaining > 0 ? 0.8 : 0)
+                .on('mouseover', function(event, d) {
+                    if (d.totalEffort > 0) {
+                        const tooltip = document.getElementById('tooltip');
+                        const [year, month] = d.month.split('-');
+                        const date = new Date(year, parseInt(month) - 1, 1);
+                        tooltip.innerHTML = `
+                            <div class="tooltip-title">${date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</div>
+                            <div class="tooltip-info">Total: ${d.totalPercentage.toFixed(1)}% (${Math.round(d.totalEffort)} pts)</div>
+                            <div class="tooltip-info">Concluído: ${d.percentageCompleted.toFixed(1)}% (${Math.round(d.effortCompleted)} pts)</div>
+                            <div class="tooltip-info">Restante: ${d.percentageRemaining.toFixed(1)}% (${Math.round(d.effortRemaining)} pts)</div>
+                        `;
+                        tooltip.style.display = 'block';
+                        tooltip.style.left = (event.pageX + 10) + 'px';
+                        tooltip.style.top = (event.pageY - 10) + 'px';
+                    }
+                })
+                .on('mouseout', function() {
+                    document.getElementById('tooltip').style.display = 'none';
+                });
+
+            // Labels nas barras - apenas para meses com dados significativos
+            bars.append('text')
+                .attr('x', d => x(d.month) + x.bandwidth() / 2)
+                .attr('y', d => d.totalPercentage > 0 ? y(d.totalPercentage) - 5 : y(0) - 5)
+                .attr('text-anchor', 'middle')
+                .style('font-size', '12px')
+                .style('font-weight', '600')
+                .style('fill', '#373737')
+                .text(d => d.totalPercentage > 0.5 ? d.totalPercentage.toFixed(0) + '%' : '');
+        }
+
+        // Desenhar gráfico de barras empilhadas
+        function drawStackedChart() {
+            const margin = {top: 20, right: 30, bottom: 60, left: 60};
+            const width = 1300 - margin.left - margin.right;
+            const height = 400 - margin.top - margin.bottom;
+
+            const svg = d3.select('#chart')
+                .append('svg')
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom);
+
+            const g = svg.append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+
+            const filteredData = processedData;
+
+            // Escalas
+            const x = d3.scaleBand()
+                .domain(filteredData.map(d => d.date))
+                .range([0, width])
+                .padding(0.1);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(filteredData, d => d.total) * 1.1])
+                .range([height, 0]);
+
+            // Grid
+            g.append('g')
+                .attr('class', 'grid')
+                .call(d3.axisLeft(y)
+                    .tickSize(-width)
+                    .tickFormat('')
+                );
+
+            // Eixo X customizado
+            const xAxis = g.append('g')
+                .attr('class', 'axis')
+                .attr('transform', `translate(0,${height})`);
+
+            if (currentGrouping === 'week') {
+                // Eixo para semanas com indicação de mês
+                const weeks = filteredData.map((d, i) => ({
+                    date: d.date,
+                    index: i,
+                    weekNum: Math.floor(i) + 1,
+                    month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
+                    year: d.date.getFullYear()
+                }));
+
+                // Linha do eixo
+                xAxis.append('line')
+                    .attr('x1', 0)
+                    .attr('x2', width)
+                    .attr('y1', 0)
+                    .attr('y2', 0)
+                    .attr('stroke', '#ddd');
+
+                // Ticks e labels das semanas
+                weeks.forEach((week, i) => {
+                    const xPos = x(week.date) + x.bandwidth() / 2;
+                    
+                    // Tick mark
+                    xAxis.append('line')
+                        .attr('x1', xPos)
+                        .attr('x2', xPos)
+                        .attr('y1', 0)
+                        .attr('y2', 6)
+                        .attr('stroke', '#ddd');
+                    
+                    // Label da semana (número apenas)
+                    xAxis.append('text')
+                        .attr('x', xPos)
+                        .attr('y', 15)
+                        .attr('text-anchor', 'middle')
+                        .style('font-size', '10px')
+                        .style('fill', '#666')
+                        .text(week.weekNum);
+                });
+
+                // Adicionar labels de mês
+                let currentMonth = '';
+                weeks.forEach((week, i) => {
+                    const monthName = week.month;
+                    if (monthName !== currentMonth) {
+                        currentMonth = monthName;
+                        const xPos = x(week.date);
+                        
+                        // Criar grupo clicável para o mês
+                        const monthGroup = xAxis.append('g')
+                            .style('cursor', 'pointer')
+                            .on('click', function() {
+                                filterByMonth(week.date);
+                            })
+                            .on('mouseover', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#6F02FD');
+                            })
+                            .on('mouseout', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#373737');
+                            });
+                        
+                        monthGroup.append('text')
+                            .attr('x', xPos + 10)
+                            .attr('y', 30)
+                            .attr('text-anchor', 'start')
+                            .style('font-size', '12px')
+                            .style('font-weight', 'bold')
+                            .style('fill', '#373737')
+                            .text(week.month.charAt(0).toUpperCase() + week.month.slice(1));
+                    }
+                });
+
+                // Label "Semanas"
+                xAxis.append('text')
+                    .attr('x', -40)
+                    .attr('y', 15)
+                    .style('font-size', '10px')
+                    .style('fill', '#999')
+                    .text('Sem:');
+
+            } else {
+                // Eixo para dias
+                const days = filteredData.map((d, i) => ({
+                    date: d.date,
+                    index: i,
+                    day: d.date.getDate(),
+                    month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
+                    year: d.date.getFullYear()
+                }));
+
+                // Linha do eixo
+                xAxis.append('line')
+                    .attr('x1', 0)
+                    .attr('x2', width)
+                    .attr('y1', 0)
+                    .attr('y2', 0)
+                    .attr('stroke', '#ddd');
+
+                // Ticks e labels dos dias (a cada 5 dias)
+                days.forEach((day, i) => {
+                    const xPos = x(day.date) + x.bandwidth() / 2;
+                    
+                    // Tick mark para todos os dias
+                    xAxis.append('line')
+                        .attr('x1', xPos)
+                        .attr('x2', xPos)
+                        .attr('y1', 0)
+                        .attr('y2', i % 5 === 0 ? 6 : 3)
+                        .attr('stroke', '#ddd');
+                    
+                    // Label apenas a cada 5 dias
+                    if (i % 5 === 0) {
+                        xAxis.append('text')
+                            .attr('x', xPos)
+                            .attr('y', 15)
+                            .attr('text-anchor', 'middle')
+                            .style('font-size', '10px')
+                            .style('fill', '#666')
+                            .text(day.day);
+                    }
+                });
+
+                // Adicionar labels de mês
+                let currentMonth = '';
+                days.forEach((day, i) => {
+                    const monthName = day.month;
+                    if (monthName !== currentMonth) {
+                        currentMonth = monthName;
+                        const xPos = x(day.date);
+                        
+                        // Criar grupo clicável para o mês
+                        const monthGroup = xAxis.append('g')
+                            .style('cursor', 'pointer')
+                            .on('click', function() {
+                                filterByMonth(day.date);
+                            })
+                            .on('mouseover', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#6F02FD');
+                            })
+                            .on('mouseout', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#373737');
+                            });
+                        
+                        monthGroup.append('text')
+                            .attr('x', xPos + 5)
+                            .attr('y', 30)
+                            .attr('text-anchor', 'start')
+                            .style('font-size', '12px')
+                            .style('font-weight', 'bold')
+                            .style('fill', '#373737')
+                            .text(day.month.charAt(0).toUpperCase() + day.month.slice(1));
+                    }
+                });
+            }
+
+            g.append('g')
+                .attr('class', 'axis')
+                .call(d3.axisLeft(y));
+
+            // Label do eixo Y
+            g.append('text')
+                .attr('transform', 'rotate(-90)')
+                .attr('y', 0 - margin.left)
+                .attr('x', 0 - (height / 2))
+                .attr('dy', '1em')
+                .style('text-anchor', 'middle')
+                .style('font-size', '14px')
+                .style('fill', '#666')
+                .text('Esforço');
+
+            // Preparar dados para empilhamento
+            let categories;
+            let colors;
+            
+            if (currentGroupingCategory === 'type') {
+                categories = [...new Set(tasksData.map(t => t.Type))];
+                colors = typeColors;
+            } else {
+                categories = [...new Set(tasksData.map(t => t.Assignee || 'Não atribuído'))];
+                colors = assigneeColors;
+            }
+
+            // Desenhar barras empilhadas
+            filteredData.forEach(d => {
+                let yOffset = 0;
+                
+                categories.forEach(category => {
+                    const categoryData = currentGroupingCategory === 'type' ? d.byType[category] : d.byAssignee[category];
+                    
+                    if (categoryData && categoryData.effort > 0) {
+                        const projectTasks = {};
+                        categoryData.tasks.forEach(task => {
+                            if (!projectTasks[task.project]) {
+                                projectTasks[task.project] = 0;
+                            }
+                            projectTasks[task.project] += task.effort;
+                        });
+
+                        Object.entries(projectTasks).forEach(([project, effort]) => {
+                            const barHeight = y(0) - y(effort);
+                            
+                            g.append('rect')
+                                .attr('class', 'bar-segment')
+                                .attr('data-category', category)
+                                .attr('data-project', project)
+                                .attr('x', x(d.date))
+                                .attr('y', y(yOffset + effort))
+                                .attr('width', x.bandwidth())
+                                .attr('height', barHeight)
+                                .attr('fill', colors[category] || '#999')
+                                .attr('opacity', 0.9)
+                                .style('cursor', 'pointer')
+                                .on('click', function(event) {
+                                    event.stopPropagation();
+                                    toggleProjectSelection(project);
+                                })
+                                .on('mouseover', function(event) {
+                                    showTooltip(event, d, category, project);
+                                    if (!selectedProject) {
+                                        highlightProject(project);
+                                    }
+                                })
+                                .on('mouseout', function() {
+                                    hideTooltip();
+                                    if (!selectedProject) {
+                                        clearProjectHighlight();
+                                    }
+                                });
+
+                            yOffset += effort;
+                        });
+                    }
+                });
+            });
+        }
+
+        // Desenhar gráficos separados
+        function drawSeparateCharts() {
+            let categories;
+            let colors;
+            
+            if (currentGroupingCategory === 'type') {
+                categories = [...new Set(tasksData.map(t => t.Type))];
+                colors = typeColors;
+            } else {
+                categories = [...new Set(tasksData.map(t => t.Assignee || 'Não atribuído'))];
+                colors = assigneeColors;
+            }
+
+            const margin = {top: 20, right: 30, bottom: 40, left: 60};
+            const width = 1300 - margin.left - margin.right;
+            const heightPerChart = 150;
+
+            categories.forEach((category, index) => {
+                const svg = d3.select('#chart')
+                    .append('svg')
+                    .attr('width', width + margin.left + margin.right)
+                    .attr('height', heightPerChart + margin.top + margin.bottom)
+                    .style('margin-bottom', '20px');
+
+                const g = svg.append('g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+                // Título
+                g.append('text')
+                    .attr('x', 0)
+                    .attr('y', -5)
+                    .style('font-size', '14px')
+                    .style('font-weight', 'bold')
+                    .style('fill', colors[category] || '#999')
+                    .text(category);
+
+                // Dados filtrados
+                const categoryData = processedData.map(d => {
+                    const dataForCategory = currentGroupingCategory === 'type' ? d.byType[category] : d.byAssignee[category];
+                    return {
+                        date: d.date,
+                        effort: dataForCategory?.effort || 0,
+                        projects: dataForCategory?.tasks || []
+                    };
+                });
+
+                // Escalas
+                const x = d3.scaleBand()
+                    .domain(categoryData.map(d => d.date))
+                    .range([0, width])
+                    .padding(0.1);
+
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(categoryData, d => d.effort) * 1.1])
+                    .range([heightPerChart, 0]);
+
+                // Grid
+                g.append('g')
+                    .attr('class', 'grid')
+                    .call(d3.axisLeft(y)
+                        .tickSize(-width)
+                        .tickFormat('')
+                        .ticks(4)
+                    );
+
+                // Eixos
+                if (index === categories.length - 1) {
+                    g.append('g')
+                        .attr('class', 'axis')
+                        .attr('transform', `translate(0,${heightPerChart})`)
+                        .call(d3.axisBottom(x)
+                            .tickFormat(d => {
+                                const date = new Date(d);
+                                return currentGrouping === 'week' 
+                                    ? `S${Math.floor((date - new Date(date.getFullYear(), 0, 1)) / (7 * 24 * 60 * 60 * 1000)) + 1}`
+                                    : date.toLocaleDateString('pt-BR', { day: '2-digit' });
+                            })
+                        );
+                } else {
+                    g.append('g')
+                        .attr('class', 'axis')
+                        .attr('transform', `translate(0,${heightPerChart})`)
+                        .call(d3.axisBottom(x).tickFormat('').tickSize(3));
+                }
+
+                g.append('g')
+                    .attr('class', 'axis')
+                    .call(d3.axisLeft(y).ticks(4));
+
+                // Barras
+                g.selectAll('.bar')
+                    .data(categoryData)
+                    .enter().each(function(d) {
+                        if (d.effort > 0) {
+                            const barX = x(d.date);
+                            const projectEfforts = {};
+                            
+                            d.projects.forEach(task => {
+                                if (!projectEfforts[task.project]) {
+                                    projectEfforts[task.project] = 0;
+                                }
+                                projectEfforts[task.project] += task.effort;
+                            });
+
+                            let yOffset = 0;
+                            Object.entries(projectEfforts).forEach(([project, effort]) => {
+                                const segmentHeight = (effort / d.effort) * (y(0) - y(d.effort));
+                                
+                                d3.select(this).append('rect')
+                                    .attr('class', 'bar-segment')
+                                    .attr('data-category', category)
+                                    .attr('data-project', project)
+                                    .attr('x', barX)
+                                    .attr('y', y(d.effort) + yOffset)
+                                    .attr('width', x.bandwidth())
+                                    .attr('height', segmentHeight)
+                                    .attr('fill', colors[category] || '#999')
+                                    .attr('opacity', 0.9)
+                                    .style('cursor', 'pointer')
+                                    .on('click', function(event) {
+                                        event.stopPropagation();
+                                        toggleProjectSelection(project);
+                                    })
+                                    .on('mouseover', function(event) {
+                                        const periodData = processedData.find(pd => pd.date === d.date);
+                                        showTooltip(event, periodData, category, project);
+                                        if (!selectedProject) {
+                                            highlightProject(project);
+                                        }
+                                    })
+                                    .on('mouseout', function() {
+                                        hideTooltip();
+                                        if (!selectedProject) {
+                                            clearProjectHighlight();
+                                        }
+                                    });
+
+                                yOffset += segmentHeight;
+                            });
+                        }
+                    });
+            });
+        }
+
+        // Toggle seleção de projeto
+        function toggleProjectSelection(project) {
+            if (selectedProject === project) {
+                selectedProject = null;
+                clearProjectHighlight();
+            } else {
+                selectedProject = project;
+                highlightProject(project);
+            }
+        }
+
+        // Destacar projeto
+        function highlightProject(project) {
+            highlightedProject = project;
+            
+            d3.selectAll('.bar-segment')
+                .attr('opacity', function() {
+                    return d3.select(this).attr('data-project') === project ? 1 : 0.3;
+                });
+
+            d3.selectAll(`.bar-segment[data-project="${project}"]`)
+                .style('stroke', '#373737')
+                .style('stroke-width', 2);
+        }
+
+        // Limpar destaque
+        function clearProjectHighlight() {
+            highlightedProject = null;
+            
+            d3.selectAll('.bar-segment')
+                .attr('opacity', 0.9)
+                .style('stroke', 'none');
+        }
+
+        // Clique fora das barras para limpar seleção
+        document.addEventListener('click', function(event) {
+            if (!event.target.classList.contains('bar-segment') && selectedProject) {
+                selectedProject = null;
+                clearProjectHighlight();
+            }
+        });
+
+        // Mostrar tooltip
+        function showTooltip(event, data, category, project) {
+            const tooltip = document.getElementById('tooltip');
+            const projectData = data.byProject[project];
+            
+            let content = `<div class="tooltip-title">${project}</div>`;
+            content += `<div class="tooltip-info">Data: ${data.date.toLocaleDateString('pt-BR')}</div>`;
+            content += `<div class="tooltip-info">Esforço do projeto: ${projectData.effort.toFixed(1)} pontos</div>`;
+            
+            if (currentGroupingCategory === 'type') {
+                const typeEffort = data.byType[category]?.effort || 0;
+                content += `<div class="tooltip-info">Esforço total em ${category}: ${typeEffort.toFixed(1)} pontos</div>`;
+                
+                const assigneesInType = Object.entries(projectData.assignees || {})
+                    .filter(([assignee, effort]) => effort > 0);
+                
+                if (assigneesInType.length > 0) {
+                    content += '<div style="margin-top: 8px; border-top: 1px solid #666; padding-top: 8px;">';
+                    content += '<div style="font-weight: bold; margin-bottom: 4px;">Pessoas neste projeto:</div>';
+                    assigneesInType.forEach(([assignee, effort]) => {
+                        content += `<div style="font-size: 11px;">• ${assignee}: ${effort.toFixed(1)} pts</div>`;
+                    });
+                    content += '</div>';
+                }
+            } else {
+                const assigneeEffort = data.byAssignee[category]?.effort || 0;
+                content += `<div class="tooltip-info">Esforço total de ${category}: ${assigneeEffort.toFixed(1)} pontos</div>`;
+                
+                const typesForAssignee = Object.entries(projectData.types || {})
+                    .filter(([type, effort]) => effort > 0);
+                
+                if (typesForAssignee.length > 0) {
+                    content += '<div style="margin-top: 8px; border-top: 1px solid #666; padding-top: 8px;">';
+                    content += '<div style="font-weight: bold; margin-bottom: 4px;">Tipos de trabalho:</div>';
+                    typesForAssignee.forEach(([type, effort]) => {
+                        content += `<div style="font-size: 11px;">• ${type}: ${effort.toFixed(1)} pts</div>`;
+                    });
+                    content += '</div>';
+                }
+            }
+            
+            content += `<div class="tooltip-info" style="font-weight: bold; margin-top: 4px;">Esforço total geral: ${data.total.toFixed(1)} pontos</div>`;
+            
+            tooltip.innerHTML = content;
+            tooltip.style.display = 'block';
+            
+            const mouseX = event.pageX || event.clientX + window.scrollX;
+            const mouseY = event.pageY || event.clientY + window.scrollY;
+            
+            const tooltipRect = tooltip.getBoundingClientRect();
+            let left = mouseX + 10;
+            let top = mouseY - tooltipRect.height - 10;
+            
+            if (left + tooltipRect.width > window.innerWidth - 20) {
+                left = mouseX - tooltipRect.width - 10;
+            }
+            
+            if (top < 20) {
+                top = mouseY + 10;
+            }
+            
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+        }
+
+        // Esconder tooltip
+        function hideTooltip() {
+            document.getElementById('tooltip').style.display = 'none';
+        }
+
+        // Atualizar legenda
+        function updateLegend() {
+            const legend = document.getElementById('legend');
+            legend.innerHTML = '';
+
+            // Não mostrar legenda para visualização de progresso
+            if (progressMode) {
+                legend.style.display = 'none';
+                return;
+            }
+
+            legend.style.display = 'flex';
+
+            let items;
+            let colors;
+            
+            if (currentGroupingCategory === 'type') {
+                items = [...new Set(tasksData.map(t => t.Type))];
+                colors = typeColors;
+            } else {
+                items = [...new Set(tasksData.map(t => t.Assignee || 'Não atribuído'))];
+                colors = assigneeColors;
+            }
+
+            items.forEach(item => {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item';
+                legendItem.innerHTML = `
+                    <div class="legend-color" style="background: ${colors[item] || '#999'}"></div>
+                    <span>${item}</span>
+                `;
+                legendItem.onclick = () => toggleLegendItem(item);
+                legend.appendChild(legendItem);
+            });
+        }
+
+        // Toggle item da legenda
+        function toggleLegendItem(item) {
+            console.log('Item clicado:', item);
+        }
+
+        // Resetar para período completo
+        function resetDateRange() {
+            if (originalDateRange.start && originalDateRange.end) {
+                document.getElementById('startDate').value = originalDateRange.start;
+                document.getElementById('endDate').value = originalDateRange.end;
+                updateDateRange();
+            }
+        }
+
+        // Filtrar por mês
+        function filterByMonth(date) {
+            const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+            const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+            
+            document.getElementById('startDate').value = monthStart.toISOString().split('T')[0];
+            document.getElementById('endDate').value = monthEnd.toISOString().split('T')[0];
+            
+            updateDateRange();
+        }
+
+        // Funções de controle
+        function setVisualizationType(type) {
+            currentVisualizationType = type;
+            document.getElementById('stackedBtn').classList.toggle('active', type === 'stacked');
+            document.getElementById('separateBtn').classList.toggle('active', type === 'separate');
+            updateVisualization();
+        }
+
+        function setGrouping(grouping) {
+            currentGrouping = grouping;
+            document.getElementById('dayBtn').classList.toggle('active', grouping === 'day');
+            document.getElementById('weekBtn').classList.toggle('active', grouping === 'week');
+            processData();
+            updateVisualization();
+        }
+
+        function setGroupingCategory(category) {
+            currentGroupingCategory = category;
+            document.getElementById('typeBtn').classList.toggle('active', category === 'type');
+            document.getElementById('assigneeBtn').classList.toggle('active', category === 'assignee');
+            processData();
+            updateVisualization();
+        }
+
+        function updateDateRange() {
+            processData();
+            updateVisualization();
+        }
+    </script>
+</body>
+</html>
+                
