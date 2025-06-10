@@ -579,7 +579,7 @@
         let referenceMonth = null;
         let projectRemainingPercentages = {};
         
-        // Cores por tipo - CORRIGIDAS DEFINITIVAMENTE
+        // Cores por tipo - DEFINITIVAS
         const typeColors = {
             'Graphic Design': '#6CDADE',           // Azul claro
             'Data Analysis & Dataviz': '#6F02FD',  // Roxo principal
@@ -597,6 +597,42 @@
             '#FF6B6B', '#4ECDC4', '#45B7D1', '#F7DC6F', '#BB8FCE',
             '#52BE80', '#F39C12', '#E74C3C', '#3498DB', '#9B59B6'
         ];
+
+        // Função para normalizar valores de esforço
+        function normalizeEffortValue(value) {
+            if (value === null || value === undefined || value === '') {
+                return 0;
+            }
+            
+            // Se já é número, retorna
+            if (typeof value === 'number') {
+                return isNaN(value) ? 0 : value;
+            }
+            
+            // Se é string, limpa e converte
+            if (typeof value === 'string') {
+                // Remove aspas, espaços e outros caracteres
+                const cleaned = value.replace(/["\s]/g, '');
+                const parsed = parseFloat(cleaned);
+                return isNaN(parsed) ? 0 : parsed;
+            }
+            
+            // Tenta converter qualquer outro tipo
+            const parsed = parseFloat(value);
+            return isNaN(parsed) ? 0 : parsed;
+        }
+
+        // Função para normalizar headers (remove espaços)
+        function normalizeHeaders(data) {
+            return data.map(row => {
+                const normalizedRow = {};
+                Object.keys(row).forEach(key => {
+                    const normalizedKey = key.trim();
+                    normalizedRow[normalizedKey] = row[key];
+                });
+                return normalizedRow;
+            });
+        }
 
         // Configurar upload
         const uploadArea = document.getElementById('uploadArea');
@@ -628,7 +664,7 @@
             }
         });
 
-        // Processar arquivo
+        // Processar arquivo - CORRIGIDO para lidar com diferentes formatos
         function handleFile(file) {
             if (!file.name.endsWith('.csv')) {
                 alert('Por favor, selecione um arquivo CSV');
@@ -637,14 +673,49 @@
 
             Papa.parse(file, {
                 header: true,
-                dynamicTyping: true,
+                dynamicTyping: false, // MUDANÇA: Desabilitar conversão automática
                 skipEmptyLines: true,
+                delimitersToGuess: [',', '\t', '|', ';'], // Tentar diferentes delimitadores
                 complete: function(results) {
-                    tasksData = results.data.filter(row => row.Task && row['Due Date'] && row.Effort);
+                    // Normalizar headers
+                    const normalizedData = normalizeHeaders(results.data);
+
+                    // Processar e validar dados
+                    const processedTasks = [];
+                    let validCount = 0;
+                    let invalidCount = 0;
+
+                    normalizedData.forEach((row, index) => {
+                        // Normalizar o valor de esforço
+                        const originalEffort = row.Effort || row.effort;
+                        const normalizedEffort = normalizeEffortValue(originalEffort);
+                        
+                        // Validar campos obrigatórios
+                        const hasTask = row.Task && row.Task.toString().trim() !== '';
+                        const hasDueDate = row['Due Date'] && row['Due Date'].toString().trim() !== '';
+                        const hasEffort = normalizedEffort > 0;
+
+                        if (hasTask && hasDueDate && hasEffort) {
+                            // Adicionar esforço normalizado
+                            row.Effort = normalizedEffort;
+                            processedTasks.push(row);
+                            validCount++;
+                        } else {
+                            invalidCount++;
+                        }
+                    });
+
+                    tasksData = processedTasks;
+
                     if (tasksData.length === 0) {
-                        alert('Nenhuma tarefa válida encontrada');
+                        alert(`Nenhuma tarefa válida encontrada.\n\nVerifique se o arquivo possui:\n- Coluna 'Task' preenchida\n- Coluna 'Due Date' preenchida\n- Coluna 'Effort' com valores numéricos\n\nTarefas processadas: ${validCount}\nTarefas inválidas: ${invalidCount}`);
                         return;
                     }
+
+                    if (invalidCount > 0) {
+                        console.warn(`${invalidCount} linhas foram ignoradas por não terem dados válidos.`);
+                    }
+
                     initializeVisualization();
                 },
                 error: function(error) {
@@ -725,7 +796,7 @@
             }
         }
 
-        // Inicializar controles de progresso - CORRIGIDO
+        // Inicializar controles de progresso
         function initializeProgressControls() {
             const monthSelect = document.getElementById('referenceMonth');
             monthSelect.innerHTML = '';
@@ -737,7 +808,6 @@
             today.setHours(0, 0, 0, 0);
             
             tasksData.forEach(task => {
-                // CORRIGIDO: usar getMonth() diretamente, sem criar nova Data
                 const startYear = task.startDate.getFullYear();
                 const startMonth = task.startDate.getMonth();
                 const endYear = task.endDate.getFullYear();
@@ -764,7 +834,6 @@
             sortedMonths.forEach(month => {
                 const option = document.createElement('option');
                 option.value = month;
-                // CORRIGIDO: parsing manual para evitar offset
                 const [year, monthNum] = month.split('-');
                 const date = new Date(year, parseInt(monthNum) - 1, 1);
                 option.textContent = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -903,7 +972,7 @@
             updateSummaryStats();
         }
 
-        // Processar progresso dos projetos - CORRIGIDO para evitar offset de mês
+        // Processar progresso dos projetos
         function processProjectProgress() {
             const projects = {};
             const today = new Date();
@@ -937,24 +1006,18 @@
                 }
             });
 
-            // Calcular distribuição mensal para cada projeto - CORRIGIDO
+            // Calcular distribuição mensal para cada projeto
             Object.values(projects).forEach(project => {
-                console.log(`\n=== Processando projeto: ${project.name} ===`);
-                
                 // Encontrar período do projeto
                 const projectDates = project.tasks.flatMap(t => [t.startDate, t.endDate]);
                 const projectStart = new Date(Math.min(...projectDates));
                 const projectEnd = new Date(Math.max(...projectDates));
                 
-                console.log(`Período do projeto: ${projectStart.toISOString().split('T')[0]} até ${projectEnd.toISOString().split('T')[0]}`);
-                
-                // CORRIGIDO: Criar estrutura mensal usando números em vez de objetos Date
+                // Criar estrutura mensal usando números em vez de objetos Date
                 const startYear = projectStart.getFullYear();
                 const startMonth = projectStart.getMonth();
                 const endYear = projectEnd.getFullYear();
                 const endMonth = projectEnd.getMonth();
-                
-                console.log(`Meses a criar: ${startYear}-${startMonth + 1} até ${endYear}-${endMonth + 1}`);
                 
                 let currentYear = startYear;
                 let currentMonth = startMonth;
@@ -966,7 +1029,6 @@
                         completed: 0,
                         remaining: 0
                     };
-                    console.log(`Criado mês: ${monthKey}`);
                     
                     currentMonth++;
                     if (currentMonth > 11) {
@@ -975,21 +1037,14 @@
                     }
                 }
                 
-                // Distribuir esforço por mês - CORRIGIDO: usar getMonth() diretamente
+                // Distribuir esforço por mês
                 project.tasks.forEach(task => {
-                    console.log(`\nProcessando tarefa: ${task.Task}`);
-                    console.log(`  Período: ${task.startDate.toISOString().split('T')[0]} até ${task.endDate.toISOString().split('T')[0]}`);
-                    console.log(`  Esforço total: ${task.Effort}`);
-                    
                     // Distribuir esforço dia a dia
                     const currentDate = new Date(task.startDate);
                     const totalDays = Math.ceil((task.endDate - task.startDate) / (1000 * 60 * 60 * 24)) + 1;
                     const effortPerDay = task.Effort / totalDays;
                     
-                    console.log(`  Dias totais: ${totalDays}, Esforço por dia: ${effortPerDay.toFixed(2)}`);
-                    
                     while (currentDate <= task.endDate) {
-                        // CORRIGIDO: usar getMonth() diretamente
                         const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
                         
                         if (project.monthlyDistribution[monthKey]) {
@@ -999,23 +1054,11 @@
                             } else {
                                 project.monthlyDistribution[monthKey].remaining += effortPerDay;
                             }
-                        } else {
-                            console.warn(`  AVISO: Mês ${monthKey} não encontrado na distribuição!`);
                         }
                         
                         currentDate.setDate(currentDate.getDate() + 1);
                     }
                 });
-                
-                // Debug: mostrar distribuição final
-                console.log('\nDistribuição mensal final:');
-                Object.entries(project.monthlyDistribution)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .forEach(([month, dist]) => {
-                        if (dist.total > 0) {
-                            console.log(`  ${month}: total=${dist.total.toFixed(1)}, concluído=${dist.completed.toFixed(1)}, restante=${dist.remaining.toFixed(1)}`);
-                        }
-                    });
                 
                 // Calcular percentuais
                 project.completedPercentage = project.totalEffort > 0 
@@ -1053,21 +1096,17 @@
             projectProgressData = Object.values(projects).sort((a, b) => b.totalEffort - a.totalEffort);
         }
 
-        // Calcular esforço restante a partir do mês de referência - CORRIGIDO
+        // Calcular esforço restante a partir do mês de referência
         function calculateRemainingFromReference(project, referenceMonth) {
-            console.log(`\nCalculando esforço restante para ${project.name} a partir de ${referenceMonth}`);
-            
             let remaining = 0;
             
             // Somar esforço restante de todos os meses >= referenceMonth
             Object.entries(project.monthlyDistribution).forEach(([month, dist]) => {
                 if (month >= referenceMonth) {
                     remaining += dist.remaining;
-                    console.log(`  ${month}: +${dist.remaining.toFixed(1)} pts (remaining)`);
                 }
             });
             
-            console.log(`  Total restante: ${remaining.toFixed(1)} pts`);
             return remaining;
         }
 
@@ -1259,11 +1298,11 @@
             updateLegend();
         }
 
-        // Desenhar visualização de progresso - CORRIGIDO E SEM DEBUG
+        // Desenhar visualização de progresso
         function drawProgressView() {
             const container = d3.select('#chart');
             
-            // Criar timeline unificada a partir do mês de referência - TODOS OS PROJETOS
+            // Criar timeline unificada a partir do mês de referência
             const allMonths = new Set();
             projectProgressData.forEach(project => {
                 Object.keys(project.monthlyDistribution).forEach(month => {
@@ -1321,12 +1360,12 @@
                 stats.append('span')
                     .text(`Realizado: ${100 - (project.remainingPercentage || 100)}%`);
 
-                // Timeline chart - AGORA COM ESCALA GLOBAL
+                // Timeline chart
                 drawProjectTimeline(content, project, globalMonths);
             });
         }
 
-        // Desenhar timeline do projeto - CORRIGIDO COM ESCALA GLOBAL
+        // Desenhar timeline do projeto
         function drawProjectTimeline(container, project, globalMonths) {
             // Filtrar apenas os meses que este projeto tem dados A PARTIR do mês de referência
             const projectMonthsWithData = [];
@@ -1336,9 +1375,6 @@
                 }
             });
             projectMonthsWithData.sort();
-            
-            console.log(`\n=== Timeline para ${project.name} ===`);
-            console.log('Meses com dados restantes:', projectMonthsWithData);
             
             // Se não há dados futuros, mostrar mensagem
             if (projectMonthsWithData.length === 0) {
@@ -1351,8 +1387,8 @@
             }
 
             const margin = {top: 10, right: 20, bottom: 5, left: 20};
-            const minWidth = 800; // Largura mínima para garantir legibilidade
-            const monthWidth = Math.max(80, minWidth / Math.max(globalMonths.length, 1)); // Largura mínima por mês
+            const minWidth = 800;
+            const monthWidth = Math.max(80, minWidth / Math.max(globalMonths.length, 1));
             const width = Math.max(minWidth, monthWidth * globalMonths.length) - margin.left - margin.right;
             const height = 100 - margin.top - margin.bottom;
 
@@ -1374,11 +1410,8 @@
                 totalRemainingEffort += project.monthlyDistribution[month].remaining;
             });
             
-            console.log(`Total de esforço restante: ${totalRemainingEffort.toFixed(1)} pts`);
-            
             // Calcular o total implícito baseado no percentual informado
             const impliedTotal = remainingPercentage > 0 ? (totalRemainingEffort / remainingPercentage) * 100 : totalRemainingEffort;
-            console.log(`Total implícito do projeto: ${impliedTotal.toFixed(1)} pts (${remainingPercentage}% restante)`);
             
             // Mapear TODOS os meses globais, preenchendo com 0 os que não têm dados
             const monthlyData = globalMonths.map(month => {
@@ -1399,10 +1432,6 @@
                     }
                 }
                 
-                if (effortRemaining > 0 || effortCompleted > 0) {
-                    console.log(`  ${month}: restante=${percentageRemaining.toFixed(1)}% (${effortRemaining.toFixed(1)} pts), concluído=${percentageCompleted.toFixed(1)}% (${effortCompleted.toFixed(1)} pts)`);
-                }
-                
                 return {
                     month: month,
                     percentageRemaining: percentageRemaining,
@@ -1414,7 +1443,7 @@
                 };
             });
 
-            // Escalas - USAR TODOS OS MESES GLOBAIS PARA CONSISTÊNCIA
+            // Escalas
             const x = d3.scaleBand()
                 .domain(globalMonths)
                 .range([0, width])
@@ -1448,13 +1477,12 @@
                 .domain([0, Math.max(globalMaxPercentage * 1.1, 5)])
                 .range([height, 0]);
 
-            // Eixo X - Formatação similar à visualização principal
+            // Eixo X
             g.append('g')
                 .attr('class', 'axis')
                 .attr('transform', `translate(0,${height})`)
                 .call(d3.axisBottom(x)
                     .tickFormat(d => {
-                        // Usar UTC para evitar problemas de timezone - apenas mês
                         const [year, month] = d.split('-');
                         const date = new Date(year, parseInt(month) - 1, 1);
                         return date.toLocaleDateString('pt-BR', { month: 'short' });
@@ -1465,7 +1493,7 @@
                 .style('font-size', '12px')
                 .style('fill', '#373737');
 
-            // Barras empilhadas corretamente (concluído na base + restante empilhado acima)
+            // Barras empilhadas
             const bars = g.selectAll('.month-bar')
                 .data(monthlyData)
                 .enter().append('g');
@@ -1474,10 +1502,10 @@
             bars.append('rect')
                 .attr('class', 'month-bar-completed')
                 .attr('x', d => x(d.month))
-                .attr('y', d => y(d.percentageCompleted)) // Da linha do concluído até a base
+                .attr('y', d => y(d.percentageCompleted))
                 .attr('width', x.bandwidth())
-                .attr('height', d => height - y(d.percentageCompleted)) // Altura do concluído
-                .attr('fill', '#6CDADE') // Turquesa
+                .attr('height', d => height - y(d.percentageCompleted))
+                .attr('fill', '#6CDADE')
                 .attr('opacity', d => d.effortCompleted > 0 ? 0.8 : 0)
                 .on('mouseover', function(event, d) {
                     if (d.totalEffort > 0) {
@@ -1503,10 +1531,10 @@
             bars.append('rect')
                 .attr('class', 'month-bar-remaining') 
                 .attr('x', d => x(d.month))
-                .attr('y', d => y(d.totalPercentage)) // Do topo total até onde termina o concluído
+                .attr('y', d => y(d.totalPercentage))
                 .attr('width', x.bandwidth())
-                .attr('height', d => y(d.percentageCompleted) - y(d.totalPercentage)) // Diferença entre total e concluído
-                .attr('fill', '#6F02FD') // Roxo principal
+                .attr('height', d => y(d.percentageCompleted) - y(d.totalPercentage))
+                .attr('fill', '#6F02FD')
                 .attr('opacity', d => d.effortRemaining > 0 ? 0.8 : 0)
                 .on('mouseover', function(event, d) {
                     if (d.totalEffort > 0) {
@@ -1528,7 +1556,7 @@
                     document.getElementById('tooltip').style.display = 'none';
                 });
 
-            // Labels nas barras - apenas para meses com dados significativos
+            // Labels nas barras
             bars.append('text')
                 .attr('x', d => x(d.month) + x.bandwidth() / 2)
                 .attr('y', d => d.totalPercentage > 0 ? y(d.totalPercentage) - 5 : y(0) - 5)
@@ -1821,34 +1849,39 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             
-            // Verificar se hoje está dentro do range de dados
-            const todayInRange = filteredData.find(d => {
-                const dataDate = new Date(d.date);
-                dataDate.setHours(0, 0, 0, 0);
-                
-                // Para vista semanal, verificar se hoje está na semana
-                if (currentGrouping === 'week') {
-                    const weekStart = getWeekStart(dataDate);
+            let todayInRange = null;
+            let todayX = null;
+            
+            if (currentGrouping === 'week') {
+                // Para vista semanal, encontrar a semana que contém hoje
+                todayInRange = filteredData.find(d => {
+                    const weekStart = getWeekStart(d.date);
                     const weekEnd = new Date(weekStart);
                     weekEnd.setDate(weekEnd.getDate() + 6);
+                    weekEnd.setHours(23, 59, 59, 999);
+                    
                     return today >= weekStart && today <= weekEnd;
-                } else {
-                    return dataDate.getTime() === today.getTime();
+                });
+                
+                if (todayInRange) {
+                    const weekStart = getWeekStart(todayInRange.date);
+                    const dayOfWeek = Math.floor((today - weekStart) / (1000 * 60 * 60 * 24));
+                    todayX = x(todayInRange.date) + (x.bandwidth() * dayOfWeek / 7);
                 }
-            });
-            
-            if (todayInRange) {
-                let todayX;
-                if (currentGrouping === 'week') {
-                    // Para vista semanal, posicionar proporcionalmente dentro da semana
-                    const weekData = todayInRange;
-                    const weekStart = getWeekStart(weekData.date);
-                    const dayOfWeek = (today - weekStart) / (1000 * 60 * 60 * 24);
-                    todayX = x(weekData.date) + (x.bandwidth() * dayOfWeek / 7);
-                } else {
+            } else {
+                // Para vista diária, buscar o dia exato
+                todayInRange = filteredData.find(d => {
+                    const dataDate = new Date(d.date);
+                    dataDate.setHours(0, 0, 0, 0);
+                    return dataDate.getTime() === today.getTime();
+                });
+                
+                if (todayInRange) {
                     todayX = x(today) + x.bandwidth() / 2;
                 }
-                
+            }
+            
+            if (todayInRange && todayX !== null) {
                 g.append('line')
                     .attr('class', 'today-line')
                     .attr('x1', todayX)
@@ -1945,7 +1978,7 @@
                         .attr('transform', `translate(0,${heightPerChart})`);
 
                     if (currentGrouping === 'week') {
-                        // Eixo para semanas com indicação de mês
+                        // Similar ao gráfico empilhado
                         const weeks = categoryData.map((d, i) => ({
                             date: d.date,
                             index: i,
@@ -1954,7 +1987,6 @@
                             year: d.date.getFullYear()
                         }));
 
-                        // Linha do eixo
                         xAxis.append('line')
                             .attr('x1', 0)
                             .attr('x2', width)
@@ -1962,11 +1994,9 @@
                             .attr('y2', 0)
                             .attr('stroke', '#ddd');
 
-                        // Ticks e labels das semanas
                         weeks.forEach((week, i) => {
                             const xPos = x(week.date) + x.bandwidth() / 2;
                             
-                            // Tick mark
                             xAxis.append('line')
                                 .attr('x1', xPos)
                                 .attr('x2', xPos)
@@ -1974,7 +2004,6 @@
                                 .attr('y2', 6)
                                 .attr('stroke', '#ddd');
                             
-                            // Label da semana (número apenas)
                             xAxis.append('text')
                                 .attr('x', xPos)
                                 .attr('y', 15)
@@ -1984,7 +2013,6 @@
                                 .text(week.weekNum);
                         });
 
-                        // Adicionar labels de mês
                         let currentMonth = '';
                         weeks.forEach((week, i) => {
                             const monthName = week.month;
@@ -1992,7 +2020,6 @@
                                 currentMonth = monthName;
                                 const xPos = x(week.date);
                                 
-                                // Criar grupo clicável para o mês
                                 const monthGroup = xAxis.append('g')
                                     .style('cursor', 'pointer')
                                     .on('click', function() {
@@ -2018,7 +2045,6 @@
                             }
                         });
 
-                        // Label "Semanas"
                         xAxis.append('text')
                             .attr('x', -40)
                             .attr('y', 15)
@@ -2036,7 +2062,6 @@
                             year: d.date.getFullYear()
                         }));
 
-                        // Linha do eixo
                         xAxis.append('line')
                             .attr('x1', 0)
                             .attr('x2', width)
@@ -2044,11 +2069,9 @@
                             .attr('y2', 0)
                             .attr('stroke', '#ddd');
 
-                        // Ticks e labels dos dias (a cada 5 dias)
                         days.forEach((day, i) => {
                             const xPos = x(day.date) + x.bandwidth() / 2;
                             
-                            // Tick mark para todos os dias
                             xAxis.append('line')
                                 .attr('x1', xPos)
                                 .attr('x2', xPos)
@@ -2056,7 +2079,6 @@
                                 .attr('y2', i % 5 === 0 ? 6 : 3)
                                 .attr('stroke', '#ddd');
                             
-                            // Label apenas a cada 5 dias
                             if (i % 5 === 0) {
                                 xAxis.append('text')
                                     .attr('x', xPos)
@@ -2068,7 +2090,6 @@
                             }
                         });
 
-                        // Adicionar labels de mês
                         let currentMonth = '';
                         days.forEach((day, i) => {
                             const monthName = day.month;
@@ -2076,7 +2097,6 @@
                                 currentMonth = monthName;
                                 const xPos = x(day.date);
                                 
-                                // Criar grupo clicável para o mês
                                 const monthGroup = xAxis.append('g')
                                     .style('cursor', 'pointer')
                                     .on('click', function() {
