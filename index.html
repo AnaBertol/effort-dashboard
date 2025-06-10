@@ -1816,6 +1816,60 @@
                     }
                 });
             });
+
+            // Adicionar linha do dia de hoje
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Verificar se hoje está dentro do range de dados
+            const todayInRange = filteredData.find(d => {
+                const dataDate = new Date(d.date);
+                dataDate.setHours(0, 0, 0, 0);
+                
+                // Para vista semanal, verificar se hoje está na semana
+                if (currentGrouping === 'week') {
+                    const weekStart = getWeekStart(dataDate);
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekEnd.getDate() + 6);
+                    return today >= weekStart && today <= weekEnd;
+                } else {
+                    return dataDate.getTime() === today.getTime();
+                }
+            });
+            
+            if (todayInRange) {
+                let todayX;
+                if (currentGrouping === 'week') {
+                    // Para vista semanal, posicionar proporcionalmente dentro da semana
+                    const weekData = todayInRange;
+                    const weekStart = getWeekStart(weekData.date);
+                    const dayOfWeek = (today - weekStart) / (1000 * 60 * 60 * 24);
+                    todayX = x(weekData.date) + (x.bandwidth() * dayOfWeek / 7);
+                } else {
+                    todayX = x(today) + x.bandwidth() / 2;
+                }
+                
+                g.append('line')
+                    .attr('class', 'today-line')
+                    .attr('x1', todayX)
+                    .attr('x2', todayX)
+                    .attr('y1', 0)
+                    .attr('y2', height)
+                    .attr('stroke', '#373737')
+                    .attr('stroke-width', 2)
+                    .attr('stroke-dasharray', '5,5')
+                    .style('pointer-events', 'none');
+                
+                // Label "Hoje"
+                g.append('text')
+                    .attr('x', todayX + 5)
+                    .attr('y', 15)
+                    .style('font-size', '12px')
+                    .style('font-weight', 'bold')
+                    .style('fill', '#373737')
+                    .style('pointer-events', 'none')
+                    .text('Hoje');
+            }
         }
 
         // Desenhar gráficos separados
