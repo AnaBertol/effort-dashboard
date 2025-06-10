@@ -579,14 +579,15 @@
         let referenceMonth = null;
         let projectRemainingPercentages = {};
         
-        // Cores por tipo - CORRIGIDAS
+        // Cores por tipo - CORRIGIDAS DEFINITIVAMENTE
         const typeColors = {
-            'Graphic Design': '#6CDADE',
-            'Data Analysis & Dataviz': '#6F02FD',
-            'Development & Tech': '#3570DF',
+            'Graphic Design': '#6CDADE',           // Azul claro
+            'Data Analysis & Dataviz': '#6F02FD',  // Roxo principal
+            'Development & Tech': '#3570DF',       // Azul
             'Strategic Consulting': '#666666',     // Cinza
             'Project Management': '#EDFF19',       // Amarelo
-            'UX & UI Design': '#FFA4E8'           // Rosa
+            'UX & UI Design': '#FFA4E8',          // Rosa
+            'UX/UI Design': '#FFA4E8'             // Rosa (caso alternativo)
         };
 
         // Cores para pessoas
@@ -1884,17 +1885,169 @@
 
                 // Eixos
                 if (index === categories.length - 1) {
-                    g.append('g')
+                    // Eixo X melhorado para o último gráfico
+                    const xAxis = g.append('g')
                         .attr('class', 'axis')
-                        .attr('transform', `translate(0,${heightPerChart})`)
-                        .call(d3.axisBottom(x)
-                            .tickFormat(d => {
-                                const date = new Date(d);
-                                return currentGrouping === 'week' 
-                                    ? `S${Math.floor((date - new Date(date.getFullYear(), 0, 1)) / (7 * 24 * 60 * 60 * 1000)) + 1}`
-                                    : date.toLocaleDateString('pt-BR', { day: '2-digit' });
-                            })
-                        );
+                        .attr('transform', `translate(0,${heightPerChart})`);
+
+                    if (currentGrouping === 'week') {
+                        // Eixo para semanas com indicação de mês
+                        const weeks = categoryData.map((d, i) => ({
+                            date: d.date,
+                            index: i,
+                            weekNum: Math.floor(i) + 1,
+                            month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
+                            year: d.date.getFullYear()
+                        }));
+
+                        // Linha do eixo
+                        xAxis.append('line')
+                            .attr('x1', 0)
+                            .attr('x2', width)
+                            .attr('y1', 0)
+                            .attr('y2', 0)
+                            .attr('stroke', '#ddd');
+
+                        // Ticks e labels das semanas
+                        weeks.forEach((week, i) => {
+                            const xPos = x(week.date) + x.bandwidth() / 2;
+                            
+                            // Tick mark
+                            xAxis.append('line')
+                                .attr('x1', xPos)
+                                .attr('x2', xPos)
+                                .attr('y1', 0)
+                                .attr('y2', 6)
+                                .attr('stroke', '#ddd');
+                            
+                            // Label da semana (número apenas)
+                            xAxis.append('text')
+                                .attr('x', xPos)
+                                .attr('y', 15)
+                                .attr('text-anchor', 'middle')
+                                .style('font-size', '10px')
+                                .style('fill', '#666')
+                                .text(week.weekNum);
+                        });
+
+                        // Adicionar labels de mês
+                        let currentMonth = '';
+                        weeks.forEach((week, i) => {
+                            const monthName = week.month;
+                            if (monthName !== currentMonth) {
+                                currentMonth = monthName;
+                                const xPos = x(week.date);
+                                
+                                // Criar grupo clicável para o mês
+                                const monthGroup = xAxis.append('g')
+                                    .style('cursor', 'pointer')
+                                    .on('click', function() {
+                                        filterByMonth(week.date);
+                                    })
+                                    .on('mouseover', function() {
+                                        d3.select(this).select('text')
+                                            .style('fill', '#6F02FD');
+                                    })
+                                    .on('mouseout', function() {
+                                        d3.select(this).select('text')
+                                            .style('fill', '#373737');
+                                    });
+                                
+                                monthGroup.append('text')
+                                    .attr('x', xPos + 10)
+                                    .attr('y', 30)
+                                    .attr('text-anchor', 'start')
+                                    .style('font-size', '12px')
+                                    .style('font-weight', 'bold')
+                                    .style('fill', '#373737')
+                                    .text(week.month.charAt(0).toUpperCase() + week.month.slice(1));
+                            }
+                        });
+
+                        // Label "Semanas"
+                        xAxis.append('text')
+                            .attr('x', -40)
+                            .attr('y', 15)
+                            .style('font-size', '10px')
+                            .style('fill', '#999')
+                            .text('Sem:');
+
+                    } else {
+                        // Eixo para dias
+                        const days = categoryData.map((d, i) => ({
+                            date: d.date,
+                            index: i,
+                            day: d.date.getDate(),
+                            month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
+                            year: d.date.getFullYear()
+                        }));
+
+                        // Linha do eixo
+                        xAxis.append('line')
+                            .attr('x1', 0)
+                            .attr('x2', width)
+                            .attr('y1', 0)
+                            .attr('y2', 0)
+                            .attr('stroke', '#ddd');
+
+                        // Ticks e labels dos dias (a cada 5 dias)
+                        days.forEach((day, i) => {
+                            const xPos = x(day.date) + x.bandwidth() / 2;
+                            
+                            // Tick mark para todos os dias
+                            xAxis.append('line')
+                                .attr('x1', xPos)
+                                .attr('x2', xPos)
+                                .attr('y1', 0)
+                                .attr('y2', i % 5 === 0 ? 6 : 3)
+                                .attr('stroke', '#ddd');
+                            
+                            // Label apenas a cada 5 dias
+                            if (i % 5 === 0) {
+                                xAxis.append('text')
+                                    .attr('x', xPos)
+                                    .attr('y', 15)
+                                    .attr('text-anchor', 'middle')
+                                    .style('font-size', '10px')
+                                    .style('fill', '#666')
+                                    .text(day.day);
+                            }
+                        });
+
+                        // Adicionar labels de mês
+                        let currentMonth = '';
+                        days.forEach((day, i) => {
+                            const monthName = day.month;
+                            if (monthName !== currentMonth) {
+                                currentMonth = monthName;
+                                const xPos = x(day.date);
+                                
+                                // Criar grupo clicável para o mês
+                                const monthGroup = xAxis.append('g')
+                                    .style('cursor', 'pointer')
+                                    .on('click', function() {
+                                        filterByMonth(day.date);
+                                    })
+                                    .on('mouseover', function() {
+                                        d3.select(this).select('text')
+                                            .style('fill', '#6F02FD');
+                                    })
+                                    .on('mouseout', function() {
+                                        d3.select(this).select('text')
+                                            .style('fill', '#373737');
+                                    });
+                                
+                                monthGroup.append('text')
+                                    .attr('x', xPos + 5)
+                                    .attr('y', 30)
+                                    .attr('text-anchor', 'start')
+                                    .style('font-size', '12px')
+                                    .style('font-weight', 'bold')
+                                    .style('fill', '#373737')
+                                    .text(day.month.charAt(0).toUpperCase() + day.month.slice(1));
+                            }
+                        });
+                    }
                 } else {
                     g.append('g')
                         .attr('class', 'axis')
@@ -2165,4 +2318,3 @@
     </script>
 </body>
 </html>
-                
