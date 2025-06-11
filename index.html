@@ -801,11 +801,9 @@
             const monthSelect = document.getElementById('referenceMonth');
             monthSelect.innerHTML = '';
             
-            // Obter todos os meses únicos das tarefas
+            // Usar apenas o ano atual
+            const currentYear = new Date().getFullYear();
             const months = new Set();
-            const today = new Date();
-            today.setDate(1);
-            today.setHours(0, 0, 0, 0);
             
             tasksData.forEach(task => {
                 const startYear = task.startDate.getFullYear();
@@ -813,18 +811,21 @@
                 const endYear = task.endDate.getFullYear();
                 const endMonth = task.endDate.getMonth();
                 
-                // Iterar mês por mês usando números, não objetos Date
-                let currentYear = startYear;
+                // Iterar mês por mês, mas apenas para o ano atual
+                let currentYearIter = startYear;
                 let currentMonth = startMonth;
                 
-                while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
-                    const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
-                    months.add(monthKey);
+                while (currentYearIter < endYear || (currentYearIter === endYear && currentMonth <= endMonth)) {
+                    // Apenas adicionar meses do ano atual
+                    if (currentYearIter === currentYear) {
+                        const monthKey = `${currentYearIter}-${String(currentMonth + 1).padStart(2, '0')}`;
+                        months.add(monthKey);
+                    }
                     
                     currentMonth++;
                     if (currentMonth > 11) {
                         currentMonth = 0;
-                        currentYear++;
+                        currentYearIter++;
                     }
                 }
             });
@@ -840,12 +841,13 @@
                 monthSelect.appendChild(option);
             });
             
-            // Selecionar o mês atual ou o primeiro mês futuro
+            // Selecionar o mês atual
+            const today = new Date();
             const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
             if (sortedMonths.includes(currentMonthKey)) {
                 monthSelect.value = currentMonthKey;
             } else {
-                // Encontrar o primeiro mês futuro
+                // Encontrar o primeiro mês futuro no ano atual
                 const futureMonth = sortedMonths.find(m => m >= currentMonthKey);
                 if (futureMonth) {
                     monthSelect.value = futureMonth;
@@ -975,8 +977,7 @@
         // Processar progresso dos projetos
         function processProjectProgress() {
             const projects = {};
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const currentYear = new Date().getFullYear();
 
             // Agrupar tarefas por projeto
             tasksData.forEach(task => {
@@ -984,8 +985,11 @@
                     projects[task.Project] = {
                         name: task.Project,
                         totalEffort: 0,
+                        totalEffortCurrentYear: 0,
                         completedEffort: 0,
+                        completedEffortCurrentYear: 0,
                         remainingEffort: 0,
+                        remainingEffortCurrentYear: 0,
                         tasks: [],
                         completedTasks: [],
                         pendingTasks: [],
@@ -997,72 +1001,94 @@
                 projects[task.Project].tasks.push(task);
                 projects[task.Project].totalEffort += task.Effort;
 
-                if (task.Completed) {
-                    projects[task.Project].completedTasks.push(task);
-                    projects[task.Project].completedEffort += task.Effort;
+                // Verificar se a tarefa tem atividade no ano atual
+                const taskHasCurrentYearActivity = (
+                    task.startDate.getFullYear() <= currentYear && 
+                    task.endDate.getFullYear() >= currentYear
+                );
+
+                if (taskHasCurrentYearActivity) {
+                    // Calcular proporção da tarefa que acontece no ano atual
+                    const yearStart = new Date(currentYear, 0, 1);
+                    const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+                    
+                    const taskStartInYear = new Date(Math.max(task.startDate, yearStart));
+                    const taskEndInYear = new Date(Math.min(task.endDate, yearEnd));
+                    
+                    const totalTaskDays = Math.ceil((task.endDate - task.startDate) / (1000 * 60 * 60 * 24)) + 1;
+                    const taskDaysInYear = Math.ceil((taskEndInYear - taskStartInYear) / (1000 * 60 * 60 * 24)) + 1;
+                    
+                    const effortInCurrentYear = (taskDaysInYear / totalTaskDays) * task.Effort;
+                    projects[task.Project].totalEffortCurrentYear += effortInCurrentYear;
+
+                    if (task.Completed) {
+                        projects[task.Project].completedTasks.push(task);
+                        projects[task.Project].completedEffort += task.Effort;
+                        projects[task.Project].completedEffortCurrentYear += effortInCurrentYear;
+                    } else {
+                        projects[task.Project].pendingTasks.push(task);
+                        projects[task.Project].remainingEffort += task.Effort;
+                        projects[task.Project].remainingEffortCurrentYear += effortInCurrentYear;
+                    }
                 } else {
-                    projects[task.Project].pendingTasks.push(task);
-                    projects[task.Project].remainingEffort += task.Effort;
+                    // Tarefa fora do ano atual
+                    if (task.Completed) {
+                        projects[task.Project].completedTasks.push(task);
+                        projects[task.Project].completedEffort += task.Effort;
+                    } else {
+                        projects[task.Project].pendingTasks.push(task);
+                        projects[task.Project].remainingEffort += task.Effort;
+                    }
                 }
             });
 
-            // Calcular distribuição mensal para cada projeto
+            // Calcular distribuição mensal para cada projeto (apenas ano atual)
             Object.values(projects).forEach(project => {
-                // Encontrar período do projeto
-                const projectDates = project.tasks.flatMap(t => [t.startDate, t.endDate]);
-                const projectStart = new Date(Math.min(...projectDates));
-                const projectEnd = new Date(Math.max(...projectDates));
-                
-                // Criar estrutura mensal usando números em vez de objetos Date
-                const startYear = projectStart.getFullYear();
-                const startMonth = projectStart.getMonth();
-                const endYear = projectEnd.getFullYear();
-                const endMonth = projectEnd.getMonth();
-                
-                let currentYear = startYear;
-                let currentMonth = startMonth;
-                
-                while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
-                    const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+                // Criar estrutura mensal apenas para o ano atual
+                for (let month = 0; month < 12; month++) {
+                    const monthKey = `${currentYear}-${String(month + 1).padStart(2, '0')}`;
                     project.monthlyDistribution[monthKey] = {
                         total: 0,
                         completed: 0,
                         remaining: 0
                     };
-                    
-                    currentMonth++;
-                    if (currentMonth > 11) {
-                        currentMonth = 0;
-                        currentYear++;
-                    }
                 }
                 
-                // Distribuir esforço por mês
+                // Distribuir esforço por mês (apenas ano atual)
                 project.tasks.forEach(task => {
-                    // Distribuir esforço dia a dia
-                    const currentDate = new Date(task.startDate);
-                    const totalDays = Math.ceil((task.endDate - task.startDate) / (1000 * 60 * 60 * 24)) + 1;
-                    const effortPerDay = task.Effort / totalDays;
+                    const yearStart = new Date(currentYear, 0, 1);
+                    const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
                     
-                    while (currentDate <= task.endDate) {
-                        const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                    // Verificar se a tarefa tem intersecção com o ano atual
+                    if (task.startDate <= yearEnd && task.endDate >= yearStart) {
+                        const taskStartInYear = new Date(Math.max(task.startDate, yearStart));
+                        const taskEndInYear = new Date(Math.min(task.endDate, yearEnd));
                         
-                        if (project.monthlyDistribution[monthKey]) {
-                            project.monthlyDistribution[monthKey].total += effortPerDay;
-                            if (task.Completed) {
-                                project.monthlyDistribution[monthKey].completed += effortPerDay;
-                            } else {
-                                project.monthlyDistribution[monthKey].remaining += effortPerDay;
+                        const totalTaskDays = Math.ceil((task.endDate - task.startDate) / (1000 * 60 * 60 * 24)) + 1;
+                        const effortPerDay = task.Effort / totalTaskDays;
+                        
+                        // Distribuir dia a dia no ano atual
+                        const currentDate = new Date(taskStartInYear);
+                        while (currentDate <= taskEndInYear) {
+                            const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                            
+                            if (project.monthlyDistribution[monthKey]) {
+                                project.monthlyDistribution[monthKey].total += effortPerDay;
+                                if (task.Completed) {
+                                    project.monthlyDistribution[monthKey].completed += effortPerDay;
+                                } else {
+                                    project.monthlyDistribution[monthKey].remaining += effortPerDay;
+                                }
                             }
+                            
+                            currentDate.setDate(currentDate.getDate() + 1);
                         }
-                        
-                        currentDate.setDate(currentDate.getDate() + 1);
                     }
                 });
                 
-                // Calcular percentuais
-                project.completedPercentage = project.totalEffort > 0 
-                    ? (project.completedEffort / project.totalEffort) * 100 
+                // Calcular percentuais baseados no ano atual
+                project.completedPercentage = project.totalEffortCurrentYear > 0 
+                    ? (project.completedEffortCurrentYear / project.totalEffortCurrentYear) * 100 
                     : 0;
                     
                 // Aplicar percentual restante se em modo de progresso
@@ -1072,37 +1098,41 @@
                     if (remainingPercentage !== null && remainingPercentage !== undefined) {
                         project.remainingPercentage = remainingPercentage;
                         
-                        // Calcular novo total baseado no percentual restante
+                        // Calcular novo total baseado no percentual restante (apenas ano atual)
                         const remainingFromReference = calculateRemainingFromReference(project, referenceMonth);
                         
                         if (remainingFromReference > 0 && remainingPercentage > 0) {
                             const impliedTotal = (remainingFromReference / remainingPercentage) * 100;
                             project.totalEffortAdjusted = impliedTotal;
-                            project.completedPercentageAdjusted = (project.completedEffort / impliedTotal) * 100;
+                            project.completedPercentageAdjusted = (project.completedEffortCurrentYear / impliedTotal) * 100;
                         } else if (remainingPercentage === 0) {
                             project.completedPercentageAdjusted = 100;
                         }
                     } else {
-                        // Calcular percentual padrão
+                        // Calcular percentual padrão baseado no ano atual
                         const remainingFromReference = calculateRemainingFromReference(project, referenceMonth);
-                        project.remainingPercentage = project.totalEffort > 0 
-                            ? Math.round((remainingFromReference / project.totalEffort) * 100)
+                        project.remainingPercentage = project.totalEffortCurrentYear > 0 
+                            ? Math.round((remainingFromReference / project.totalEffortCurrentYear) * 100)
                             : 0;
                         projectRemainingPercentages[project.name] = project.remainingPercentage;
                     }
                 }
             });
 
-            projectProgressData = Object.values(projects).sort((a, b) => b.totalEffort - a.totalEffort);
+            projectProgressData = Object.values(projects)
+                .filter(project => project.totalEffortCurrentYear > 0) // Apenas projetos com atividade no ano atual
+                .sort((a, b) => b.totalEffortCurrentYear - a.totalEffortCurrentYear);
         }
 
-        // Calcular esforço restante a partir do mês de referência
+        // Calcular esforço restante a partir do mês de referência (apenas ano atual)
         function calculateRemainingFromReference(project, referenceMonth) {
             let remaining = 0;
+            const currentYear = new Date().getFullYear();
             
-            // Somar esforço restante de todos os meses >= referenceMonth
+            // Somar esforço restante de todos os meses >= referenceMonth no ano atual
             Object.entries(project.monthlyDistribution).forEach(([month, dist]) => {
-                if (month >= referenceMonth) {
+                const [year] = month.split('-');
+                if (parseInt(year) === currentYear && month >= referenceMonth) {
                     remaining += dist.remaining;
                 }
             });
@@ -1114,6 +1144,7 @@
         function openPercentageModal(projectName) {
             const project = projectProgressData.find(p => p.name === projectName);
             if (!project) return;
+            const currentYear = new Date().getFullYear();
             
             // Criar modal
             const modalBackdrop = document.createElement('div');
@@ -1122,21 +1153,22 @@
             const modal = document.createElement('div');
             modal.className = 'progress-input-modal';
             
-            // Usar o valor completo em vez do restante
-            const completedPercentage = project.remainingPercentage !== null && project.remainingPercentage !== undefined
-                ? 100 - project.remainingPercentage
-                : Math.round(project.completedPercentage);
+            // Usar o valor restante baseado no ano atual
+            const remainingPercentage = project.remainingPercentage !== null && project.remainingPercentage !== undefined
+                ? project.remainingPercentage
+                : Math.round((project.remainingEffortCurrentYear / project.totalEffortCurrentYear) * 100);
             
             modal.innerHTML = `
-                <div class="modal-title">Progresso Realizado - ${projectName}</div>
+                <div class="modal-title">% Restante do Projeto em ${currentYear} - ${projectName}</div>
                 <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
-                    Informe quanto % do projeto já foi realizado:
+                    Informe quanto % do projeto ainda resta a ser realizado no ano ${currentYear}:
                 </p>
                 <input type="number" class="modal-input" id="modalPercentageInput" 
-                       value="${completedPercentage}" min="0" max="100" step="1">
+                       value="${remainingPercentage}" min="0" max="100" step="1">
                 <p style="margin-bottom: 20px; color: #666; font-size: 12px;">
-                    Esforço já concluído: ${Math.round(project.completedEffort)} pontos<br>
-                    Esforço restante: ${Math.round(calculateRemainingFromReference(project, referenceMonth))} pontos
+                    Esforço concluído no ${currentYear}: ${Math.round(project.completedEffortCurrentYear)} pontos<br>
+                    Esforço restante no ${currentYear}: ${Math.round(calculateRemainingFromReference(project, referenceMonth))} pontos<br>
+                    Total planejado para ${currentYear}: ${Math.round(project.totalEffortCurrentYear)} pontos
                 </p>
                 <div class="modal-buttons">
                     <button class="modal-button secondary" onclick="closePercentageModal()">Cancelar</button>
@@ -1163,11 +1195,9 @@
         // Salvar percentual
         function savePercentage(projectName) {
             const input = document.getElementById('modalPercentageInput');
-            const completedPercentage = parseFloat(input.value) || 0;
+            const remainingPercentage = parseFloat(input.value) || 0;
             
-            // Converter para percentual restante
-            const remainingPercentage = 100 - completedPercentage;
-            
+            // Agora o valor inserido já é o percentual restante, não precisa converter
             projectRemainingPercentages[projectName] = remainingPercentage;
             closePercentageModal();
             
@@ -1301,12 +1331,14 @@
         // Desenhar visualização de progresso
         function drawProgressView() {
             const container = d3.select('#chart');
+            const currentYear = new Date().getFullYear();
             
-            // Criar timeline unificada a partir do mês de referência
+            // Criar timeline unificada apenas para o ano atual
             const allMonths = new Set();
             projectProgressData.forEach(project => {
                 Object.keys(project.monthlyDistribution).forEach(month => {
-                    if (month >= referenceMonth) {
+                    const [year] = month.split('-');
+                    if (parseInt(year) === currentYear && month >= referenceMonth) {
                         allMonths.add(month);
                     }
                 });
@@ -1350,15 +1382,15 @@
                 const stats = header.append('div')
                     .attr('class', 'project-stats');
 
-                const totalEffort = project.totalEffortAdjusted || project.totalEffort;
+                const totalEffort = project.totalEffortAdjusted || project.totalEffortCurrentYear;
                 stats.append('span')
-                    .text(`Total: ${Math.round(totalEffort)} pts`);
+                    .text(`Total ${currentYear}: ${Math.round(totalEffort)} pts`);
 
                 stats.append('span')
-                    .text(`Concluído: ${Math.round(project.completedEffort)} pts`);
+                    .text(`Concluído: ${Math.round(project.completedEffortCurrentYear)} pts`);
 
                 stats.append('span')
-                    .text(`Realizado: ${100 - (project.remainingPercentage || 100)}%`);
+                    .text(`Realizado: ${Math.round(100 - (project.remainingPercentage || 100))}%`);
 
                 // Timeline chart
                 drawProjectTimeline(content, project, globalMonths);
@@ -1367,22 +1399,25 @@
 
         // Desenhar timeline do projeto
         function drawProjectTimeline(container, project, globalMonths) {
-            // Filtrar apenas os meses que este projeto tem dados A PARTIR do mês de referência
+            const currentYear = new Date().getFullYear();
+            
+            // Filtrar apenas os meses do ano atual que este projeto tem dados A PARTIR do mês de referência
             const projectMonthsWithData = [];
             Object.entries(project.monthlyDistribution).forEach(([month, dist]) => {
-                if (month >= referenceMonth && dist.remaining > 0) {
+                const [year] = month.split('-');
+                if (parseInt(year) === currentYear && month >= referenceMonth && dist.remaining > 0) {
                     projectMonthsWithData.push(month);
                 }
             });
             projectMonthsWithData.sort();
             
-            // Se não há dados futuros, mostrar mensagem
+            // Se não há dados futuros no ano atual, mostrar mensagem
             if (projectMonthsWithData.length === 0) {
                 container.append('p')
                     .style('padding', '20px')
                     .style('color', '#666')
                     .style('font-style', 'italic')
-                    .text('Sem atividades futuras a partir do mês de referência');
+                    .text(`Sem atividades futuras no ano ${currentYear} a partir do mês de referência`);
                 return;
             }
 
@@ -1401,19 +1436,19 @@
             const g = svg.append('g')
                 .attr('transform', `translate(${margin.left},${margin.top})`);
 
-            // Preparar dados com percentuais
+            // Preparar dados com percentuais baseados no ano atual
             const remainingPercentage = project.remainingPercentage || 0;
             
-            // Calcular o total de esforço restante REAL
-            let totalRemainingEffort = 0;
+            // Calcular o total de esforço restante REAL no ano atual
+            let totalRemainingEffortCurrentYear = 0;
             projectMonthsWithData.forEach(month => {
-                totalRemainingEffort += project.monthlyDistribution[month].remaining;
+                totalRemainingEffortCurrentYear += project.monthlyDistribution[month].remaining;
             });
             
-            // Calcular o total implícito baseado no percentual informado
-            const impliedTotal = remainingPercentage > 0 ? (totalRemainingEffort / remainingPercentage) * 100 : totalRemainingEffort;
+            // Calcular o total implícito baseado no percentual informado (apenas ano atual)
+            const impliedTotal = remainingPercentage > 0 ? (totalRemainingEffortCurrentYear / remainingPercentage) * 100 : totalRemainingEffortCurrentYear;
             
-            // Mapear TODOS os meses globais, preenchendo com 0 os que não têm dados
+            // Mapear TODOS os meses globais do ano atual, preenchendo com 0 os que não têm dados
             const monthlyData = globalMonths.map(month => {
                 const dist = project.monthlyDistribution[month];
                 
@@ -1449,7 +1484,7 @@
                 .range([0, width])
                 .padding(0.1);
 
-            // Calcular escala Y máxima global para todos os projetos
+            // Calcular escala Y máxima global para todos os projetos do ano atual
             let globalMaxPercentage = 0;
             projectProgressData.forEach(proj => {
                 const projRemainingPercentage = proj.remainingPercentage || 0;
@@ -1457,7 +1492,8 @@
                 let projTotalCompleted = 0;
                 
                 Object.entries(proj.monthlyDistribution).forEach(([month, dist]) => {
-                    if (month >= referenceMonth) {
+                    const [year] = month.split('-');
+                    if (parseInt(year) === currentYear && month >= referenceMonth) {
                         projTotalRemaining += dist.remaining || 0;
                         projTotalCompleted += dist.completed || 0;
                     }
@@ -1466,7 +1502,8 @@
                 const projImpliedTotal = projRemainingPercentage > 0 ? (projTotalRemaining / projRemainingPercentage) * 100 : (projTotalRemaining + projTotalCompleted);
                 
                 Object.entries(proj.monthlyDistribution).forEach(([month, dist]) => {
-                    if (month >= referenceMonth && projImpliedTotal > 0) {
+                    const [year] = month.split('-');
+                    if (parseInt(year) === currentYear && month >= referenceMonth && projImpliedTotal > 0) {
                         const monthTotalPercentage = ((dist.remaining || 0) + (dist.completed || 0)) / projImpliedTotal * 100;
                         globalMaxPercentage = Math.max(globalMaxPercentage, monthTotalPercentage);
                     }
@@ -1569,7 +1606,7 @@
 
         // Desenhar gráfico de barras empilhadas
         function drawStackedChart() {
-            const margin = {top: 20, right: 30, bottom: 60, left: 60};
+            const margin = {top: 20, right: 30, bottom: 80, left: 60}; // Aumentar margem inferior para 3 níveis
             const width = 1300 - margin.left - margin.right;
             const height = 400 - margin.top - margin.bottom;
 
@@ -1601,13 +1638,13 @@
                     .tickFormat('')
                 );
 
-            // Eixo X customizado
+            // Eixo X customizado com 3 níveis: dias/semanas, meses e anos
             const xAxis = g.append('g')
                 .attr('class', 'axis')
                 .attr('transform', `translate(0,${height})`);
 
             if (currentGrouping === 'week') {
-                // Eixo para semanas com indicação de mês
+                // Eixo para semanas com indicação de mês e ano
                 const weeks = filteredData.map((d, i) => ({
                     date: d.date,
                     index: i,
@@ -1616,7 +1653,7 @@
                     year: d.date.getFullYear()
                 }));
 
-                // Linha do eixo
+                // Linha do eixo principal
                 xAxis.append('line')
                     .attr('x1', 0)
                     .attr('x2', width)
@@ -1624,7 +1661,7 @@
                     .attr('y2', 0)
                     .attr('stroke', '#ddd');
 
-                // Ticks e labels das semanas
+                // Ticks e labels das semanas (nível 1)
                 weeks.forEach((week, i) => {
                     const xPos = x(week.date) + x.bandwidth() / 2;
                     
@@ -1646,12 +1683,15 @@
                         .text(week.weekNum);
                 });
 
-                // Adicionar labels de mês
+                // Adicionar labels de mês (nível 2)
                 let currentMonth = '';
+                let currentYear = null;
                 weeks.forEach((week, i) => {
                     const monthName = week.month;
-                    if (monthName !== currentMonth) {
-                        currentMonth = monthName;
+                    const monthYear = `${monthName}-${week.year}`;
+                    
+                    if (monthYear !== currentMonth) {
+                        currentMonth = monthYear;
                         const xPos = x(week.date);
                         
                         // Criar grupo clicável para o mês
@@ -1680,6 +1720,39 @@
                     }
                 });
 
+                // Adicionar labels de ano (nível 3)
+                let processedYears = new Set();
+                weeks.forEach((week, i) => {
+                    if (!processedYears.has(week.year)) {
+                        processedYears.add(week.year);
+                        const xPos = x(week.date);
+                        
+                        // Criar grupo clicável para o ano
+                        const yearGroup = xAxis.append('g')
+                            .style('cursor', 'pointer')
+                            .on('click', function() {
+                                filterByYear(week.year);
+                            })
+                            .on('mouseover', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#2C0165');
+                            })
+                            .on('mouseout', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#373737');
+                            });
+                        
+                        yearGroup.append('text')
+                            .attr('x', xPos + 10)
+                            .attr('y', 50)
+                            .attr('text-anchor', 'start')
+                            .style('font-size', '14px')
+                            .style('font-weight', 'bold')
+                            .style('fill', '#373737')
+                            .text(week.year);
+                    }
+                });
+
                 // Label "Semanas"
                 xAxis.append('text')
                     .attr('x', -40)
@@ -1689,7 +1762,7 @@
                     .text('Sem:');
 
             } else {
-                // Eixo para dias
+                // Eixo para dias com indicação de mês e ano
                 const days = filteredData.map((d, i) => ({
                     date: d.date,
                     index: i,
@@ -1698,7 +1771,7 @@
                     year: d.date.getFullYear()
                 }));
 
-                // Linha do eixo
+                // Linha do eixo principal
                 xAxis.append('line')
                     .attr('x1', 0)
                     .attr('x2', width)
@@ -1706,7 +1779,7 @@
                     .attr('y2', 0)
                     .attr('stroke', '#ddd');
 
-                // Ticks e labels dos dias (a cada 5 dias)
+                // Ticks e labels dos dias (nível 1 - a cada 5 dias)
                 days.forEach((day, i) => {
                     const xPos = x(day.date) + x.bandwidth() / 2;
                     
@@ -1730,12 +1803,14 @@
                     }
                 });
 
-                // Adicionar labels de mês
+                // Adicionar labels de mês (nível 2)
                 let currentMonth = '';
                 days.forEach((day, i) => {
                     const monthName = day.month;
-                    if (monthName !== currentMonth) {
-                        currentMonth = monthName;
+                    const monthYear = `${monthName}-${day.year}`;
+                    
+                    if (monthYear !== currentMonth) {
+                        currentMonth = monthYear;
                         const xPos = x(day.date);
                         
                         // Criar grupo clicável para o mês
@@ -1761,6 +1836,39 @@
                             .style('font-weight', 'bold')
                             .style('fill', '#373737')
                             .text(day.month.charAt(0).toUpperCase() + day.month.slice(1));
+                    }
+                });
+
+                // Adicionar labels de ano (nível 3)
+                let processedYears = new Set();
+                days.forEach((day, i) => {
+                    if (!processedYears.has(day.year)) {
+                        processedYears.add(day.year);
+                        const xPos = x(day.date);
+                        
+                        // Criar grupo clicável para o ano
+                        const yearGroup = xAxis.append('g')
+                            .style('cursor', 'pointer')
+                            .on('click', function() {
+                                filterByYear(day.year);
+                            })
+                            .on('mouseover', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#2C0165');
+                            })
+                            .on('mouseout', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#373737');
+                            });
+                        
+                        yearGroup.append('text')
+                            .attr('x', xPos + 10)
+                            .attr('y', 50)
+                            .attr('text-anchor', 'start')
+                            .style('font-size', '14px')
+                            .style('font-weight', 'bold')
+                            .style('fill', '#373737')
+                            .text(day.year);
                     }
                 });
             }
@@ -1918,7 +2026,7 @@
                 colors = assigneeColors;
             }
 
-            const margin = {top: 20, right: 30, bottom: 40, left: 60};
+            const margin = {top: 20, right: 30, bottom: 60, left: 60}; // Ajustar margem para gráficos separados
             const width = 1300 - margin.left - margin.right;
             const heightPerChart = 150;
 
@@ -1972,13 +2080,13 @@
 
                 // Eixos
                 if (index === categories.length - 1) {
-                    // Eixo X melhorado para o último gráfico
+                    // Eixo X completo apenas para o último gráfico
                     const xAxis = g.append('g')
                         .attr('class', 'axis')
                         .attr('transform', `translate(0,${heightPerChart})`);
 
                     if (currentGrouping === 'week') {
-                        // Similar ao gráfico empilhado
+                        // Similar ao gráfico empilhado - 3 níveis
                         const weeks = categoryData.map((d, i) => ({
                             date: d.date,
                             index: i,
@@ -1987,6 +2095,7 @@
                             year: d.date.getFullYear()
                         }));
 
+                        // Linha do eixo principal
                         xAxis.append('line')
                             .attr('x1', 0)
                             .attr('x2', width)
@@ -1994,6 +2103,7 @@
                             .attr('y2', 0)
                             .attr('stroke', '#ddd');
 
+                        // Nível 1: Semanas
                         weeks.forEach((week, i) => {
                             const xPos = x(week.date) + x.bandwidth() / 2;
                             
@@ -2013,11 +2123,14 @@
                                 .text(week.weekNum);
                         });
 
+                        // Nível 2: Meses
                         let currentMonth = '';
                         weeks.forEach((week, i) => {
                             const monthName = week.month;
-                            if (monthName !== currentMonth) {
-                                currentMonth = monthName;
+                            const monthYear = `${monthName}-${week.year}`;
+                            
+                            if (monthYear !== currentMonth) {
+                                currentMonth = monthYear;
                                 const xPos = x(week.date);
                                 
                                 const monthGroup = xAxis.append('g')
@@ -2045,6 +2158,38 @@
                             }
                         });
 
+                        // Nível 3: Anos
+                        let processedYears = new Set();
+                        weeks.forEach((week, i) => {
+                            if (!processedYears.has(week.year)) {
+                                processedYears.add(week.year);
+                                const xPos = x(week.date);
+                                
+                                const yearGroup = xAxis.append('g')
+                                    .style('cursor', 'pointer')
+                                    .on('click', function() {
+                                        filterByYear(week.year);
+                                    })
+                                    .on('mouseover', function() {
+                                        d3.select(this).select('text')
+                                            .style('fill', '#2C0165');
+                                    })
+                                    .on('mouseout', function() {
+                                        d3.select(this).select('text')
+                                            .style('fill', '#373737');
+                                    });
+                                
+                                yearGroup.append('text')
+                                    .attr('x', xPos + 10)
+                                    .attr('y', 50)
+                                    .attr('text-anchor', 'start')
+                                    .style('font-size', '14px')
+                                    .style('font-weight', 'bold')
+                                    .style('fill', '#373737')
+                                    .text(week.year);
+                            }
+                        });
+
                         xAxis.append('text')
                             .attr('x', -40)
                             .attr('y', 15)
@@ -2053,7 +2198,7 @@
                             .text('Sem:');
 
                     } else {
-                        // Eixo para dias
+                        // Eixo para dias - 3 níveis
                         const days = categoryData.map((d, i) => ({
                             date: d.date,
                             index: i,
@@ -2062,6 +2207,7 @@
                             year: d.date.getFullYear()
                         }));
 
+                        // Linha do eixo principal
                         xAxis.append('line')
                             .attr('x1', 0)
                             .attr('x2', width)
@@ -2069,6 +2215,7 @@
                             .attr('y2', 0)
                             .attr('stroke', '#ddd');
 
+                        // Nível 1: Dias
                         days.forEach((day, i) => {
                             const xPos = x(day.date) + x.bandwidth() / 2;
                             
@@ -2090,11 +2237,14 @@
                             }
                         });
 
+                        // Nível 2: Meses
                         let currentMonth = '';
                         days.forEach((day, i) => {
                             const monthName = day.month;
-                            if (monthName !== currentMonth) {
-                                currentMonth = monthName;
+                            const monthYear = `${monthName}-${day.year}`;
+                            
+                            if (monthYear !== currentMonth) {
+                                currentMonth = monthYear;
                                 const xPos = x(day.date);
                                 
                                 const monthGroup = xAxis.append('g')
@@ -2121,8 +2271,41 @@
                                     .text(day.month.charAt(0).toUpperCase() + day.month.slice(1));
                             }
                         });
+
+                        // Nível 3: Anos
+                        let processedYears = new Set();
+                        days.forEach((day, i) => {
+                            if (!processedYears.has(day.year)) {
+                                processedYears.add(day.year);
+                                const xPos = x(day.date);
+                                
+                                const yearGroup = xAxis.append('g')
+                                    .style('cursor', 'pointer')
+                                    .on('click', function() {
+                                        filterByYear(day.year);
+                                    })
+                                    .on('mouseover', function() {
+                                        d3.select(this).select('text')
+                                            .style('fill', '#2C0165');
+                                    })
+                                    .on('mouseout', function() {
+                                        d3.select(this).select('text')
+                                            .style('fill', '#373737');
+                                    });
+                                
+                                yearGroup.append('text')
+                                    .attr('x', xPos + 10)
+                                    .attr('y', 50)
+                                    .attr('text-anchor', 'start')
+                                    .style('font-size', '14px')
+                                    .style('font-weight', 'bold')
+                                    .style('fill', '#373737')
+                                    .text(day.year);
+                            }
+                        });
                     }
                 } else {
+                    // Eixo X simplificado para gráficos intermediários
                     g.append('g')
                         .attr('class', 'axis')
                         .attr('transform', `translate(0,${heightPerChart})`)
@@ -2357,6 +2540,17 @@
             
             document.getElementById('startDate').value = monthStart.toISOString().split('T')[0];
             document.getElementById('endDate').value = monthEnd.toISOString().split('T')[0];
+            
+            updateDateRange();
+        }
+
+        // Filtrar por ano
+        function filterByYear(year) {
+            const yearStart = new Date(year, 0, 1);
+            const yearEnd = new Date(year, 11, 31);
+            
+            document.getElementById('startDate').value = yearStart.toISOString().split('T')[0];
+            document.getElementById('endDate').value = yearEnd.toISOString().split('T')[0];
             
             updateDateRange();
         }
