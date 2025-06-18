@@ -251,6 +251,18 @@
             stroke-dasharray: 2,2;
         }
 
+        .reference-line {
+            stroke: #e0e0e0;
+            stroke-width: 1;
+            stroke-dasharray: 3,3;
+        }
+
+        .reference-text {
+            font-size: 10px;
+            fill: #999;
+            text-anchor: end;
+        }
+
         /* Estilos para visualização de progresso */
         .progress-controls {
             background: #f5f5f5;
@@ -512,14 +524,6 @@
             </div>
 
             <div class="control-group">
-                <label class="control-label">Período</label>
-                <div class="toggle-buttons">
-                    <button class="toggle-button" id="dayBtn" onclick="setGrouping('day')">Por Dia</button>
-                    <button class="toggle-button active" id="weekBtn" onclick="setGrouping('week')">Por Semana</button>
-                </div>
-            </div>
-
-            <div class="control-group">
                 <label class="control-label">Intervalo de Datas</label>
                 <div style="display: flex; gap: 10px;">
                     <input type="date" id="startDate" onchange="updateDateRange()">
@@ -543,8 +547,8 @@
 
         <div class="summary-stats" id="summaryStats" style="display: none;">
             <div class="stat-card">
-                <div class="stat-value" id="avgDaily">0</div>
-                <div class="stat-label">Média Diária</div>
+                <div class="stat-value" id="avgWeekly">0</div>
+                <div class="stat-label">Média Semanal</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="peakEffort">0</div>
@@ -570,7 +574,6 @@
         let processedData = [];
         let projectProgressData = [];
         let currentVisualizationType = 'stacked';
-        let currentGrouping = 'week';
         let currentGroupingCategory = 'type';
         let highlightedProject = null;
         let selectedProject = null;
@@ -871,7 +874,7 @@
             updateVisualization();
         }
 
-        // Processar dados
+        // Processar dados (apenas por semanas agora)
         function processData() {
             const startDate = new Date(document.getElementById('startDate').value);
             const endDate = new Date(document.getElementById('endDate').value);
@@ -961,12 +964,8 @@
                 }
             });
 
-            // Agrupar por semana se necessário
-            if (currentGrouping === 'week') {
-                processedData = groupByWeek(dataByPeriod);
-            } else {
-                processedData = Object.values(dataByPeriod);
-            }
+            // Sempre agrupar por semana
+            processedData = groupByWeek(dataByPeriod);
 
             // Processar dados de progresso por projeto
             processProjectProgress();
@@ -1292,7 +1291,7 @@
         // Atualizar estatísticas
         function updateSummaryStats() {
             const totalEffort = processedData.reduce((sum, d) => sum + d.total, 0);
-            const avgDaily = totalEffort / processedData.length;
+            const avgWeekly = totalEffort / processedData.length;
             const peakEffort = Math.max(...processedData.map(d => d.total));
             
             let activeItems;
@@ -1306,7 +1305,7 @@
                 labelText = 'Pessoas Ativas';
             }
 
-            document.getElementById('avgDaily').textContent = Math.round(avgDaily);
+            document.getElementById('avgWeekly').textContent = Math.round(avgWeekly);
             document.getElementById('peakEffort').textContent = Math.round(peakEffort);
             document.getElementById('activeItems').textContent = activeItems;
             document.getElementById('activeItemsLabel').textContent = labelText;
@@ -1606,7 +1605,7 @@
 
         // Desenhar gráfico de barras empilhadas
         function drawStackedChart() {
-            const margin = {top: 20, right: 30, bottom: 80, left: 60}; // Aumentar margem inferior para 3 níveis
+            const margin = {top: 20, right: 30, bottom: 80, left: 60}; 
             const width = 1300 - margin.left - margin.right;
             const height = 400 - margin.top - margin.bottom;
 
@@ -1638,240 +1637,153 @@
                     .tickFormat('')
                 );
 
-            // Eixo X customizado com 3 níveis: dias/semanas, meses e anos
+            // Linhas de referência para 7 e 10
+            g.append('line')
+                .attr('class', 'reference-line')
+                .attr('x1', 0)
+                .attr('x2', width)
+                .attr('y1', y(7))
+                .attr('y2', y(7));
+
+            g.append('text')
+                .attr('class', 'reference-text')
+                .attr('x', width - 5)
+                .attr('y', y(7) - 3)
+                .text('7');
+
+            g.append('line')
+                .attr('class', 'reference-line')
+                .attr('x1', 0)
+                .attr('x2', width)
+                .attr('y1', y(10))
+                .attr('y2', y(10));
+
+            g.append('text')
+                .attr('class', 'reference-text')
+                .attr('x', width - 5)
+                .attr('y', y(10) - 3)
+                .text('10');
+
+            // Eixo X customizado com 3 níveis: semanas, meses e anos
             const xAxis = g.append('g')
                 .attr('class', 'axis')
                 .attr('transform', `translate(0,${height})`);
 
-            if (currentGrouping === 'week') {
-                // Eixo para semanas com indicação de mês e ano
-                const weeks = filteredData.map((d, i) => ({
-                    date: d.date,
-                    index: i,
-                    weekNum: Math.floor(i) + 1,
-                    month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
-                    year: d.date.getFullYear()
-                }));
+            // Eixo para semanas com indicação de mês e ano
+            const weeks = filteredData.map((d, i) => ({
+                date: d.date,
+                index: i,
+                weekNum: Math.floor(i) + 1,
+                month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
+                year: d.date.getFullYear()
+            }));
 
-                // Linha do eixo principal
+            // Linha do eixo principal
+            xAxis.append('line')
+                .attr('x1', 0)
+                .attr('x2', width)
+                .attr('y1', 0)
+                .attr('y2', 0)
+                .attr('stroke', '#ddd');
+
+            // Ticks e labels das semanas (nível 1)
+            weeks.forEach((week, i) => {
+                const xPos = x(week.date) + x.bandwidth() / 2;
+                
+                // Tick mark
                 xAxis.append('line')
-                    .attr('x1', 0)
-                    .attr('x2', width)
+                    .attr('x1', xPos)
+                    .attr('x2', xPos)
                     .attr('y1', 0)
-                    .attr('y2', 0)
+                    .attr('y2', 6)
                     .attr('stroke', '#ddd');
-
-                // Ticks e labels das semanas (nível 1)
-                weeks.forEach((week, i) => {
-                    const xPos = x(week.date) + x.bandwidth() / 2;
-                    
-                    // Tick mark
-                    xAxis.append('line')
-                        .attr('x1', xPos)
-                        .attr('x2', xPos)
-                        .attr('y1', 0)
-                        .attr('y2', 6)
-                        .attr('stroke', '#ddd');
-                    
-                    // Label da semana (número apenas)
-                    xAxis.append('text')
-                        .attr('x', xPos)
-                        .attr('y', 15)
-                        .attr('text-anchor', 'middle')
-                        .style('font-size', '10px')
-                        .style('fill', '#666')
-                        .text(week.weekNum);
-                });
-
-                // Adicionar labels de mês (nível 2)
-                let currentMonth = '';
-                let currentYear = null;
-                weeks.forEach((week, i) => {
-                    const monthName = week.month;
-                    const monthYear = `${monthName}-${week.year}`;
-                    
-                    if (monthYear !== currentMonth) {
-                        currentMonth = monthYear;
-                        const xPos = x(week.date);
-                        
-                        // Criar grupo clicável para o mês
-                        const monthGroup = xAxis.append('g')
-                            .style('cursor', 'pointer')
-                            .on('click', function() {
-                                filterByMonth(week.date);
-                            })
-                            .on('mouseover', function() {
-                                d3.select(this).select('text')
-                                    .style('fill', '#6F02FD');
-                            })
-                            .on('mouseout', function() {
-                                d3.select(this).select('text')
-                                    .style('fill', '#373737');
-                            });
-                        
-                        monthGroup.append('text')
-                            .attr('x', xPos + 10)
-                            .attr('y', 30)
-                            .attr('text-anchor', 'start')
-                            .style('font-size', '12px')
-                            .style('font-weight', 'bold')
-                            .style('fill', '#373737')
-                            .text(week.month.charAt(0).toUpperCase() + week.month.slice(1));
-                    }
-                });
-
-                // Adicionar labels de ano (nível 3)
-                let processedYears = new Set();
-                weeks.forEach((week, i) => {
-                    if (!processedYears.has(week.year)) {
-                        processedYears.add(week.year);
-                        const xPos = x(week.date);
-                        
-                        // Criar grupo clicável para o ano
-                        const yearGroup = xAxis.append('g')
-                            .style('cursor', 'pointer')
-                            .on('click', function() {
-                                filterByYear(week.year);
-                            })
-                            .on('mouseover', function() {
-                                d3.select(this).select('text')
-                                    .style('fill', '#2C0165');
-                            })
-                            .on('mouseout', function() {
-                                d3.select(this).select('text')
-                                    .style('fill', '#373737');
-                            });
-                        
-                        yearGroup.append('text')
-                            .attr('x', xPos + 10)
-                            .attr('y', 50)
-                            .attr('text-anchor', 'start')
-                            .style('font-size', '14px')
-                            .style('font-weight', 'bold')
-                            .style('fill', '#373737')
-                            .text(week.year);
-                    }
-                });
-
-                // Label "Semanas"
+                
+                // Label da semana (número apenas)
                 xAxis.append('text')
-                    .attr('x', -40)
+                    .attr('x', xPos)
                     .attr('y', 15)
+                    .attr('text-anchor', 'middle')
                     .style('font-size', '10px')
-                    .style('fill', '#999')
-                    .text('Sem:');
+                    .style('fill', '#666')
+                    .text(week.weekNum);
+            });
 
-            } else {
-                // Eixo para dias com indicação de mês e ano
-                const days = filteredData.map((d, i) => ({
-                    date: d.date,
-                    index: i,
-                    day: d.date.getDate(),
-                    month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
-                    year: d.date.getFullYear()
-                }));
-
-                // Linha do eixo principal
-                xAxis.append('line')
-                    .attr('x1', 0)
-                    .attr('x2', width)
-                    .attr('y1', 0)
-                    .attr('y2', 0)
-                    .attr('stroke', '#ddd');
-
-                // Ticks e labels dos dias (nível 1 - a cada 5 dias)
-                days.forEach((day, i) => {
-                    const xPos = x(day.date) + x.bandwidth() / 2;
+            // Adicionar labels de mês (nível 2)
+            let currentMonth = '';
+            weeks.forEach((week, i) => {
+                const monthName = week.month;
+                const monthYear = `${monthName}-${week.year}`;
+                
+                if (monthYear !== currentMonth) {
+                    currentMonth = monthYear;
+                    const xPos = x(week.date);
                     
-                    // Tick mark para todos os dias
-                    xAxis.append('line')
-                        .attr('x1', xPos)
-                        .attr('x2', xPos)
-                        .attr('y1', 0)
-                        .attr('y2', i % 5 === 0 ? 6 : 3)
-                        .attr('stroke', '#ddd');
+                    // Criar grupo clicável para o mês
+                    const monthGroup = xAxis.append('g')
+                        .style('cursor', 'pointer')
+                        .on('click', function() {
+                            filterByMonth(week.date);
+                        })
+                        .on('mouseover', function() {
+                            d3.select(this).select('text')
+                                .style('fill', '#6F02FD');
+                        })
+                        .on('mouseout', function() {
+                            d3.select(this).select('text')
+                                .style('fill', '#373737');
+                        });
                     
-                    // Label apenas a cada 5 dias
-                    if (i % 5 === 0) {
-                        xAxis.append('text')
-                            .attr('x', xPos)
-                            .attr('y', 15)
-                            .attr('text-anchor', 'middle')
-                            .style('font-size', '10px')
-                            .style('fill', '#666')
-                            .text(day.day);
-                    }
-                });
+                    monthGroup.append('text')
+                        .attr('x', xPos + 10)
+                        .attr('y', 30)
+                        .attr('text-anchor', 'start')
+                        .style('font-size', '12px')
+                        .style('font-weight', 'bold')
+                        .style('fill', '#373737')
+                        .text(week.month.charAt(0).toUpperCase() + week.month.slice(1));
+                }
+            });
 
-                // Adicionar labels de mês (nível 2)
-                let currentMonth = '';
-                days.forEach((day, i) => {
-                    const monthName = day.month;
-                    const monthYear = `${monthName}-${day.year}`;
+            // Adicionar labels de ano (nível 3)
+            let processedYears = new Set();
+            weeks.forEach((week, i) => {
+                if (!processedYears.has(week.year)) {
+                    processedYears.add(week.year);
+                    const xPos = x(week.date);
                     
-                    if (monthYear !== currentMonth) {
-                        currentMonth = monthYear;
-                        const xPos = x(day.date);
-                        
-                        // Criar grupo clicável para o mês
-                        const monthGroup = xAxis.append('g')
-                            .style('cursor', 'pointer')
-                            .on('click', function() {
-                                filterByMonth(day.date);
-                            })
-                            .on('mouseover', function() {
-                                d3.select(this).select('text')
-                                    .style('fill', '#6F02FD');
-                            })
-                            .on('mouseout', function() {
-                                d3.select(this).select('text')
-                                    .style('fill', '#373737');
-                            });
-                        
-                        monthGroup.append('text')
-                            .attr('x', xPos + 5)
-                            .attr('y', 30)
-                            .attr('text-anchor', 'start')
-                            .style('font-size', '12px')
-                            .style('font-weight', 'bold')
-                            .style('fill', '#373737')
-                            .text(day.month.charAt(0).toUpperCase() + day.month.slice(1));
-                    }
-                });
+                    // Criar grupo clicável para o ano
+                    const yearGroup = xAxis.append('g')
+                        .style('cursor', 'pointer')
+                        .on('click', function() {
+                            filterByYear(week.year);
+                        })
+                        .on('mouseover', function() {
+                            d3.select(this).select('text')
+                                .style('fill', '#2C0165');
+                        })
+                        .on('mouseout', function() {
+                            d3.select(this).select('text')
+                                .style('fill', '#373737');
+                        });
+                    
+                    yearGroup.append('text')
+                        .attr('x', xPos + 10)
+                        .attr('y', 50)
+                        .attr('text-anchor', 'start')
+                        .style('font-size', '14px')
+                        .style('font-weight', 'bold')
+                        .style('fill', '#373737')
+                        .text(week.year);
+                }
+            });
 
-                // Adicionar labels de ano (nível 3)
-                let processedYears = new Set();
-                days.forEach((day, i) => {
-                    if (!processedYears.has(day.year)) {
-                        processedYears.add(day.year);
-                        const xPos = x(day.date);
-                        
-                        // Criar grupo clicável para o ano
-                        const yearGroup = xAxis.append('g')
-                            .style('cursor', 'pointer')
-                            .on('click', function() {
-                                filterByYear(day.year);
-                            })
-                            .on('mouseover', function() {
-                                d3.select(this).select('text')
-                                    .style('fill', '#2C0165');
-                            })
-                            .on('mouseout', function() {
-                                d3.select(this).select('text')
-                                    .style('fill', '#373737');
-                            });
-                        
-                        yearGroup.append('text')
-                            .attr('x', xPos + 10)
-                            .attr('y', 50)
-                            .attr('text-anchor', 'start')
-                            .style('font-size', '14px')
-                            .style('font-weight', 'bold')
-                            .style('fill', '#373737')
-                            .text(day.year);
-                    }
-                });
-            }
+            // Label "Semanas"
+            xAxis.append('text')
+                .attr('x', -40)
+                .attr('y', 15)
+                .style('font-size', '10px')
+                .style('fill', '#999')
+                .text('Sem:');
 
             g.append('g')
                 .attr('class', 'axis')
@@ -1954,63 +1866,7 @@
             });
 
             // Adicionar linha do dia de hoje
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            let todayInRange = null;
-            let todayX = null;
-            
-            if (currentGrouping === 'week') {
-                // Para vista semanal, encontrar a semana que contém hoje
-                todayInRange = filteredData.find(d => {
-                    const weekStart = getWeekStart(d.date);
-                    const weekEnd = new Date(weekStart);
-                    weekEnd.setDate(weekEnd.getDate() + 6);
-                    weekEnd.setHours(23, 59, 59, 999);
-                    
-                    return today >= weekStart && today <= weekEnd;
-                });
-                
-                if (todayInRange) {
-                    const weekStart = getWeekStart(todayInRange.date);
-                    const dayOfWeek = Math.floor((today - weekStart) / (1000 * 60 * 60 * 24));
-                    todayX = x(todayInRange.date) + (x.bandwidth() * dayOfWeek / 7);
-                }
-            } else {
-                // Para vista diária, buscar o dia exato
-                todayInRange = filteredData.find(d => {
-                    const dataDate = new Date(d.date);
-                    dataDate.setHours(0, 0, 0, 0);
-                    return dataDate.getTime() === today.getTime();
-                });
-                
-                if (todayInRange) {
-                    todayX = x(today) + x.bandwidth() / 2;
-                }
-            }
-            
-            if (todayInRange && todayX !== null) {
-                g.append('line')
-                    .attr('class', 'today-line')
-                    .attr('x1', todayX)
-                    .attr('x2', todayX)
-                    .attr('y1', 0)
-                    .attr('y2', height)
-                    .attr('stroke', '#373737')
-                    .attr('stroke-width', 2)
-                    .attr('stroke-dasharray', '5,5')
-                    .style('pointer-events', 'none');
-                
-                // Label "Hoje"
-                g.append('text')
-                    .attr('x', todayX + 5)
-                    .attr('y', 15)
-                    .style('font-size', '12px')
-                    .style('font-weight', 'bold')
-                    .style('fill', '#373737')
-                    .style('pointer-events', 'none')
-                    .text('Hoje');
-            }
+            addTodayLine(g, filteredData, x, height);
         }
 
         // Desenhar gráficos separados
@@ -2026,9 +1882,24 @@
                 colors = assigneeColors;
             }
 
-            const margin = {top: 20, right: 30, bottom: 60, left: 60}; // Ajustar margem para gráficos separados
+            const margin = {top: 20, right: 30, bottom: 60, left: 60};
             const width = 1300 - margin.left - margin.right;
             const heightPerChart = 150;
+
+            // Calcular escala Y global (igual para todos os gráficos)
+            let globalMaxEffort = 0;
+            categories.forEach(category => {
+                const categoryData = processedData.map(d => {
+                    const dataForCategory = currentGroupingCategory === 'type' ? d.byType[category] : d.byAssignee[category];
+                    return dataForCategory?.effort || 0;
+                });
+                const maxInCategory = d3.max(categoryData) || 0;
+                globalMaxEffort = Math.max(globalMaxEffort, maxInCategory);
+            });
+
+            const globalY = d3.scaleLinear()
+                .domain([0, globalMaxEffort * 1.1])
+                .range([heightPerChart, 0]);
 
             categories.forEach((category, index) => {
                 const svg = d3.select('#chart')
@@ -2065,256 +1936,165 @@
                     .range([0, width])
                     .padding(0.1);
 
-                const y = d3.scaleLinear()
-                    .domain([0, d3.max(categoryData, d => d.effort) * 1.1])
-                    .range([heightPerChart, 0]);
-
                 // Grid
                 g.append('g')
                     .attr('class', 'grid')
-                    .call(d3.axisLeft(y)
+                    .call(d3.axisLeft(globalY)
                         .tickSize(-width)
                         .tickFormat('')
                         .ticks(4)
                     );
 
-                // Eixos
-                if (index === categories.length - 1) {
-                    // Eixo X completo apenas para o último gráfico
-                    const xAxis = g.append('g')
-                        .attr('class', 'axis')
-                        .attr('transform', `translate(0,${heightPerChart})`);
+                // Linhas de referência para 7 e 10 (em todos os gráficos)
+                if (globalMaxEffort >= 7) {
+                    g.append('line')
+                        .attr('class', 'reference-line')
+                        .attr('x1', 0)
+                        .attr('x2', width)
+                        .attr('y1', globalY(7))
+                        .attr('y2', globalY(7));
 
-                    if (currentGrouping === 'week') {
-                        // Similar ao gráfico empilhado - 3 níveis
-                        const weeks = categoryData.map((d, i) => ({
-                            date: d.date,
-                            index: i,
-                            weekNum: Math.floor(i) + 1,
-                            month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
-                            year: d.date.getFullYear()
-                        }));
-
-                        // Linha do eixo principal
-                        xAxis.append('line')
-                            .attr('x1', 0)
-                            .attr('x2', width)
-                            .attr('y1', 0)
-                            .attr('y2', 0)
-                            .attr('stroke', '#ddd');
-
-                        // Nível 1: Semanas
-                        weeks.forEach((week, i) => {
-                            const xPos = x(week.date) + x.bandwidth() / 2;
-                            
-                            xAxis.append('line')
-                                .attr('x1', xPos)
-                                .attr('x2', xPos)
-                                .attr('y1', 0)
-                                .attr('y2', 6)
-                                .attr('stroke', '#ddd');
-                            
-                            xAxis.append('text')
-                                .attr('x', xPos)
-                                .attr('y', 15)
-                                .attr('text-anchor', 'middle')
-                                .style('font-size', '10px')
-                                .style('fill', '#666')
-                                .text(week.weekNum);
-                        });
-
-                        // Nível 2: Meses
-                        let currentMonth = '';
-                        weeks.forEach((week, i) => {
-                            const monthName = week.month;
-                            const monthYear = `${monthName}-${week.year}`;
-                            
-                            if (monthYear !== currentMonth) {
-                                currentMonth = monthYear;
-                                const xPos = x(week.date);
-                                
-                                const monthGroup = xAxis.append('g')
-                                    .style('cursor', 'pointer')
-                                    .on('click', function() {
-                                        filterByMonth(week.date);
-                                    })
-                                    .on('mouseover', function() {
-                                        d3.select(this).select('text')
-                                            .style('fill', '#6F02FD');
-                                    })
-                                    .on('mouseout', function() {
-                                        d3.select(this).select('text')
-                                            .style('fill', '#373737');
-                                    });
-                                
-                                monthGroup.append('text')
-                                    .attr('x', xPos + 10)
-                                    .attr('y', 30)
-                                    .attr('text-anchor', 'start')
-                                    .style('font-size', '12px')
-                                    .style('font-weight', 'bold')
-                                    .style('fill', '#373737')
-                                    .text(week.month.charAt(0).toUpperCase() + week.month.slice(1));
-                            }
-                        });
-
-                        // Nível 3: Anos
-                        let processedYears = new Set();
-                        weeks.forEach((week, i) => {
-                            if (!processedYears.has(week.year)) {
-                                processedYears.add(week.year);
-                                const xPos = x(week.date);
-                                
-                                const yearGroup = xAxis.append('g')
-                                    .style('cursor', 'pointer')
-                                    .on('click', function() {
-                                        filterByYear(week.year);
-                                    })
-                                    .on('mouseover', function() {
-                                        d3.select(this).select('text')
-                                            .style('fill', '#2C0165');
-                                    })
-                                    .on('mouseout', function() {
-                                        d3.select(this).select('text')
-                                            .style('fill', '#373737');
-                                    });
-                                
-                                yearGroup.append('text')
-                                    .attr('x', xPos + 10)
-                                    .attr('y', 50)
-                                    .attr('text-anchor', 'start')
-                                    .style('font-size', '14px')
-                                    .style('font-weight', 'bold')
-                                    .style('fill', '#373737')
-                                    .text(week.year);
-                            }
-                        });
-
-                        xAxis.append('text')
-                            .attr('x', -40)
-                            .attr('y', 15)
-                            .style('font-size', '10px')
-                            .style('fill', '#999')
-                            .text('Sem:');
-
-                    } else {
-                        // Eixo para dias - 3 níveis
-                        const days = categoryData.map((d, i) => ({
-                            date: d.date,
-                            index: i,
-                            day: d.date.getDate(),
-                            month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
-                            year: d.date.getFullYear()
-                        }));
-
-                        // Linha do eixo principal
-                        xAxis.append('line')
-                            .attr('x1', 0)
-                            .attr('x2', width)
-                            .attr('y1', 0)
-                            .attr('y2', 0)
-                            .attr('stroke', '#ddd');
-
-                        // Nível 1: Dias
-                        days.forEach((day, i) => {
-                            const xPos = x(day.date) + x.bandwidth() / 2;
-                            
-                            xAxis.append('line')
-                                .attr('x1', xPos)
-                                .attr('x2', xPos)
-                                .attr('y1', 0)
-                                .attr('y2', i % 5 === 0 ? 6 : 3)
-                                .attr('stroke', '#ddd');
-                            
-                            if (i % 5 === 0) {
-                                xAxis.append('text')
-                                    .attr('x', xPos)
-                                    .attr('y', 15)
-                                    .attr('text-anchor', 'middle')
-                                    .style('font-size', '10px')
-                                    .style('fill', '#666')
-                                    .text(day.day);
-                            }
-                        });
-
-                        // Nível 2: Meses
-                        let currentMonth = '';
-                        days.forEach((day, i) => {
-                            const monthName = day.month;
-                            const monthYear = `${monthName}-${day.year}`;
-                            
-                            if (monthYear !== currentMonth) {
-                                currentMonth = monthYear;
-                                const xPos = x(day.date);
-                                
-                                const monthGroup = xAxis.append('g')
-                                    .style('cursor', 'pointer')
-                                    .on('click', function() {
-                                        filterByMonth(day.date);
-                                    })
-                                    .on('mouseover', function() {
-                                        d3.select(this).select('text')
-                                            .style('fill', '#6F02FD');
-                                    })
-                                    .on('mouseout', function() {
-                                        d3.select(this).select('text')
-                                            .style('fill', '#373737');
-                                    });
-                                
-                                monthGroup.append('text')
-                                    .attr('x', xPos + 5)
-                                    .attr('y', 30)
-                                    .attr('text-anchor', 'start')
-                                    .style('font-size', '12px')
-                                    .style('font-weight', 'bold')
-                                    .style('fill', '#373737')
-                                    .text(day.month.charAt(0).toUpperCase() + day.month.slice(1));
-                            }
-                        });
-
-                        // Nível 3: Anos
-                        let processedYears = new Set();
-                        days.forEach((day, i) => {
-                            if (!processedYears.has(day.year)) {
-                                processedYears.add(day.year);
-                                const xPos = x(day.date);
-                                
-                                const yearGroup = xAxis.append('g')
-                                    .style('cursor', 'pointer')
-                                    .on('click', function() {
-                                        filterByYear(day.year);
-                                    })
-                                    .on('mouseover', function() {
-                                        d3.select(this).select('text')
-                                            .style('fill', '#2C0165');
-                                    })
-                                    .on('mouseout', function() {
-                                        d3.select(this).select('text')
-                                            .style('fill', '#373737');
-                                    });
-                                
-                                yearGroup.append('text')
-                                    .attr('x', xPos + 10)
-                                    .attr('y', 50)
-                                    .attr('text-anchor', 'start')
-                                    .style('font-size', '14px')
-                                    .style('font-weight', 'bold')
-                                    .style('fill', '#373737')
-                                    .text(day.year);
-                            }
-                        });
-                    }
-                } else {
-                    // Eixo X simplificado para gráficos intermediários
-                    g.append('g')
-                        .attr('class', 'axis')
-                        .attr('transform', `translate(0,${heightPerChart})`)
-                        .call(d3.axisBottom(x).tickFormat('').tickSize(3));
+                    g.append('text')
+                        .attr('class', 'reference-text')
+                        .attr('x', width - 5)
+                        .attr('y', globalY(7) - 3)
+                        .text('7');
                 }
+
+                if (globalMaxEffort >= 10) {
+                    g.append('line')
+                        .attr('class', 'reference-line')
+                        .attr('x1', 0)
+                        .attr('x2', width)
+                        .attr('y1', globalY(10))
+                        .attr('y2', globalY(10));
+
+                    g.append('text')
+                        .attr('class', 'reference-text')
+                        .attr('x', width - 5)
+                        .attr('y', globalY(10) - 3)
+                        .text('10');
+                }
+
+                // Eixo X completo em todos os gráficos (não só no último)
+                const xAxis = g.append('g')
+                    .attr('class', 'axis')
+                    .attr('transform', `translate(0,${heightPerChart})`);
+
+                // Eixo para semanas - 3 níveis em todos os gráficos
+                const weeks = categoryData.map((d, i) => ({
+                    date: d.date,
+                    index: i,
+                    weekNum: Math.floor(i) + 1,
+                    month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
+                    year: d.date.getFullYear()
+                }));
+
+                // Linha do eixo principal
+                xAxis.append('line')
+                    .attr('x1', 0)
+                    .attr('x2', width)
+                    .attr('y1', 0)
+                    .attr('y2', 0)
+                    .attr('stroke', '#ddd');
+
+                // Nível 1: Semanas
+                weeks.forEach((week, i) => {
+                    const xPos = x(week.date) + x.bandwidth() / 2;
+                    
+                    xAxis.append('line')
+                        .attr('x1', xPos)
+                        .attr('x2', xPos)
+                        .attr('y1', 0)
+                        .attr('y2', 6)
+                        .attr('stroke', '#ddd');
+                    
+                    xAxis.append('text')
+                        .attr('x', xPos)
+                        .attr('y', 15)
+                        .attr('text-anchor', 'middle')
+                        .style('font-size', '10px')
+                        .style('fill', '#666')
+                        .text(week.weekNum);
+                });
+
+                // Nível 2: Meses
+                let currentMonth = '';
+                weeks.forEach((week, i) => {
+                    const monthName = week.month;
+                    const monthYear = `${monthName}-${week.year}`;
+                    
+                    if (monthYear !== currentMonth) {
+                        currentMonth = monthYear;
+                        const xPos = x(week.date);
+                        
+                        const monthGroup = xAxis.append('g')
+                            .style('cursor', 'pointer')
+                            .on('click', function() {
+                                filterByMonth(week.date);
+                            })
+                            .on('mouseover', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#6F02FD');
+                            })
+                            .on('mouseout', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#373737');
+                            });
+                        
+                        monthGroup.append('text')
+                            .attr('x', xPos + 10)
+                            .attr('y', 30)
+                            .attr('text-anchor', 'start')
+                            .style('font-size', '12px')
+                            .style('font-weight', 'bold')
+                            .style('fill', '#373737')
+                            .text(week.month.charAt(0).toUpperCase() + week.month.slice(1));
+                    }
+                });
+
+                // Nível 3: Anos
+                let processedYears = new Set();
+                weeks.forEach((week, i) => {
+                    if (!processedYears.has(week.year)) {
+                        processedYears.add(week.year);
+                        const xPos = x(week.date);
+                        
+                        const yearGroup = xAxis.append('g')
+                            .style('cursor', 'pointer')
+                            .on('click', function() {
+                                filterByYear(week.year);
+                            })
+                            .on('mouseover', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#2C0165');
+                            })
+                            .on('mouseout', function() {
+                                d3.select(this).select('text')
+                                    .style('fill', '#373737');
+                            });
+                        
+                        yearGroup.append('text')
+                            .attr('x', xPos + 10)
+                            .attr('y', 50)
+                            .attr('text-anchor', 'start')
+                            .style('font-size', '14px')
+                            .style('font-weight', 'bold')
+                            .style('fill', '#373737')
+                            .text(week.year);
+                    }
+                });
+
+                xAxis.append('text')
+                    .attr('x', -40)
+                    .attr('y', 15)
+                    .style('font-size', '10px')
+                    .style('fill', '#999')
+                    .text('Sem:');
 
                 g.append('g')
                     .attr('class', 'axis')
-                    .call(d3.axisLeft(y).ticks(4));
+                    .call(d3.axisLeft(globalY).ticks(4));
 
                 // Barras
                 g.selectAll('.bar')
@@ -2333,14 +2113,14 @@
 
                             let yOffset = 0;
                             Object.entries(projectEfforts).forEach(([project, effort]) => {
-                                const segmentHeight = (effort / d.effort) * (y(0) - y(d.effort));
+                                const segmentHeight = (effort / d.effort) * (globalY(0) - globalY(d.effort));
                                 
                                 d3.select(this).append('rect')
                                     .attr('class', 'bar-segment')
                                     .attr('data-category', category)
                                     .attr('data-project', project)
                                     .attr('x', barX)
-                                    .attr('y', y(d.effort) + yOffset)
+                                    .attr('y', globalY(d.effort) + yOffset)
                                     .attr('width', x.bandwidth())
                                     .attr('height', segmentHeight)
                                     .attr('fill', colors[category] || '#999')
@@ -2368,7 +2148,53 @@
                             });
                         }
                     });
+
+                // Adicionar linha do hoje em cada gráfico
+                addTodayLine(g, categoryData, x, heightPerChart);
             });
+        }
+
+        // Função auxiliar para adicionar linha "hoje"
+        function addTodayLine(g, data, x, height) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Para vista semanal, encontrar a semana que contém hoje
+            const todayInRange = data.find(d => {
+                const weekStart = getWeekStart(d.date);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                weekEnd.setHours(23, 59, 59, 999);
+                
+                return today >= weekStart && today <= weekEnd;
+            });
+            
+            if (todayInRange) {
+                const weekStart = getWeekStart(todayInRange.date);
+                const dayOfWeek = Math.floor((today - weekStart) / (1000 * 60 * 60 * 24));
+                const todayX = x(todayInRange.date) + (x.bandwidth() * dayOfWeek / 7);
+                
+                g.append('line')
+                    .attr('class', 'today-line')
+                    .attr('x1', todayX)
+                    .attr('x2', todayX)
+                    .attr('y1', 0)
+                    .attr('y2', height)
+                    .attr('stroke', '#373737')
+                    .attr('stroke-width', 2)
+                    .attr('stroke-dasharray', '5,5')
+                    .style('pointer-events', 'none');
+                
+                // Label "Hoje"
+                g.append('text')
+                    .attr('x', todayX + 5)
+                    .attr('y', 15)
+                    .style('font-size', '12px')
+                    .style('font-weight', 'bold')
+                    .style('fill', '#373737')
+                    .style('pointer-events', 'none')
+                    .text('Hoje');
+            }
         }
 
         // Toggle seleção de projeto
@@ -2560,14 +2386,6 @@
             currentVisualizationType = type;
             document.getElementById('stackedBtn').classList.toggle('active', type === 'stacked');
             document.getElementById('separateBtn').classList.toggle('active', type === 'separate');
-            updateVisualization();
-        }
-
-        function setGrouping(grouping) {
-            currentGrouping = grouping;
-            document.getElementById('dayBtn').classList.toggle('active', grouping === 'day');
-            document.getElementById('weekBtn').classList.toggle('active', grouping === 'week');
-            processData();
             updateVisualization();
         }
 
