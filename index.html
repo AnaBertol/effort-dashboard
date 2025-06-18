@@ -597,9 +597,51 @@
         let assigneeColors = {};
         const assigneeColorPalette = [
             '#6F02FD', '#3570DF', '#6CDADE', '#FFA4E8', '#2C0165', 
-            '#FF6B6B', '#4ECDC4', '#45B7D1', '#F7DC6F', '#BB8FCE',
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#E6B800', '#BB8FCE',
             '#52BE80', '#F39C12', '#E74C3C', '#3498DB', '#9B59B6'
         ];
+
+        // Cores específicas para pessoas conhecidas
+        const specificPersonColors = {
+            'Amanda': '#6F02FD',
+            'Bárbara': '#3570DF', 
+            'Ana': '#6CDADE',
+            'Nate': '#FFA4E8',
+            'Vitória': '#2C0165',
+            'Giulia': '#FF6B6B',
+            'Sara': '#E6B800'  // Amarelo com bom contraste
+        };
+
+        // Mapeamento de emails para nomes simplificados
+        const emailToName = {
+            'amanda@odd.studio': 'Amanda',
+            'bárbara@odd.studio': 'Bárbara',
+            'barbara@odd.studio': 'Bárbara',
+            'ana.bertol@odd.studio': 'Ana',
+            'nate@odd.studio': 'Nate',
+            'vitória@odd.studio': 'Vitória',
+            'vitoria@odd.studio': 'Vitória',
+            'giulia@odd.studio': 'Giulia',
+            'sara@odd.studio': 'Sara'
+        };
+
+        // Função para simplificar nome/email
+        function simplifyAssignee(assignee) {
+            if (!assignee) return null;
+            
+            // Converter para minúsculas para comparação
+            const lowerAssignee = assignee.toLowerCase();
+            
+            // Procurar por correspondência no mapeamento
+            for (const [email, name] of Object.entries(emailToName)) {
+                if (lowerAssignee.includes(email.toLowerCase())) {
+                    return name;
+                }
+            }
+            
+            // Se não encontrou no mapeamento, retorna o valor original
+            return assignee;
+        }
 
         // Função para normalizar valores de esforço
         function normalizeEffortValue(value) {
@@ -742,10 +784,26 @@
                 task.Completed = task.Completed === true || task.Completed === 'TRUE' || task.Completed === 1;
             });
 
-            // Atribuir cores para pessoas
-            const uniqueAssignees = [...new Set(tasksData.map(t => t.Assignee || 'Não atribuído'))];
-            uniqueAssignees.forEach((assignee, index) => {
-                assigneeColors[assignee] = assigneeColorPalette[index % assigneeColorPalette.length];
+            // Atribuir cores apenas para pessoas com email (não para "Não atribuído")
+            const uniqueAssignees = [...new Set(tasksData.map(t => {
+                const originalAssignee = t.Assignee;
+                const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
+                return simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${t.Type}`;
+            }))];
+            
+            let colorIndex = 0;
+            uniqueAssignees.forEach((assignee) => {
+                // Se começa com "Não atribuído", usar cinza
+                if (assignee.startsWith('Não atribuído')) {
+                    assigneeColors[assignee] = '#999999';
+                // Se é uma pessoa específica conhecida, usar cor específica
+                } else if (specificPersonColors[assignee]) {
+                    assigneeColors[assignee] = specificPersonColors[assignee];
+                } else {
+                    // Outras pessoas recebem cores da paleta
+                    assigneeColors[assignee] = assigneeColorPalette[colorIndex % assigneeColorPalette.length];
+                    colorIndex++;
+                }
             });
 
             // Encontrar range de datas
@@ -922,7 +980,10 @@
                             });
 
                             // Por pessoa
-                            const assignee = task.Assignee || 'Não atribuído';
+                            const originalAssignee = task.Assignee;
+                            const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
+                            const assignee = simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${task.Type}`;
+                            
                             if (!dataByPeriod[dateKey].byAssignee[assignee]) {
                                 dataByPeriod[dateKey].byAssignee[assignee] = {
                                     effort: 0,
@@ -1301,7 +1362,11 @@
                 activeItems = new Set(tasksData.map(t => t.Project)).size;
                 labelText = 'Projetos Ativos';
             } else {
-                activeItems = new Set(tasksData.map(t => t.Assignee || 'Não atribuído')).size;
+                activeItems = new Set(tasksData.map(t => {
+                    const originalAssignee = t.Assignee;
+                    const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
+                    return simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${t.Type}`;
+                })).size;
                 labelText = 'Pessoas Ativas';
             }
 
@@ -1780,10 +1845,21 @@
             let colors;
             
             if (currentGroupingCategory === 'type') {
-                categories = [...new Set(tasksData.map(t => t.Type))];
+                categories = [...new Set(tasksData.map(t => t.Type))].sort();
                 colors = typeColors;
             } else {
-                categories = [...new Set(tasksData.map(t => t.Assignee || 'Não atribuído'))];
+                const allAssignees = [...new Set(tasksData.map(t => {
+                    const originalAssignee = t.Assignee;
+                    const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
+                    return simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${t.Type}`;
+                }))];
+                
+                // Separar pessoas reais dos "Não atribuído"
+                const realPeople = allAssignees.filter(a => !a.startsWith('Não atribuído')).sort();
+                const unassigned = allAssignees.filter(a => a.startsWith('Não atribuído')).sort();
+                
+                // Colocar pessoas primeiro, depois "Não atribuído"
+                categories = [...realPeople, ...unassigned];
                 colors = assigneeColors;
             }
 
@@ -1850,10 +1926,21 @@
             let colors;
             
             if (currentGroupingCategory === 'type') {
-                categories = [...new Set(tasksData.map(t => t.Type))];
+                categories = [...new Set(tasksData.map(t => t.Type))].sort();
                 colors = typeColors;
             } else {
-                categories = [...new Set(tasksData.map(t => t.Assignee || 'Não atribuído'))];
+                const allAssignees = [...new Set(tasksData.map(t => {
+                    const originalAssignee = t.Assignee;
+                    const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
+                    return simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${t.Type}`;
+                }))];
+                
+                // Separar pessoas reais dos "Não atribuído"
+                const realPeople = allAssignees.filter(a => !a.startsWith('Não atribuído')).sort();
+                const unassigned = allAssignees.filter(a => a.startsWith('Não atribuído')).sort();
+                
+                // Colocar pessoas primeiro, depois "Não atribuído"
+                categories = [...realPeople, ...unassigned];
                 colors = assigneeColors;
             }
 
@@ -2301,10 +2388,21 @@
             let colors;
             
             if (currentGroupingCategory === 'type') {
-                items = [...new Set(tasksData.map(t => t.Type))];
+                items = [...new Set(tasksData.map(t => t.Type))].sort();
                 colors = typeColors;
             } else {
-                items = [...new Set(tasksData.map(t => t.Assignee || 'Não atribuído'))];
+                const allAssignees = [...new Set(tasksData.map(t => {
+                    const originalAssignee = t.Assignee;
+                    const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
+                    return simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${t.Type}`;
+                }))];
+                
+                // Separar pessoas reais dos "Não atribuído"
+                const realPeople = allAssignees.filter(a => !a.startsWith('Não atribuído')).sort();
+                const unassigned = allAssignees.filter(a => a.startsWith('Não atribuído')).sort();
+                
+                // Colocar pessoas primeiro, depois "Não atribuído"
+                items = [...realPeople, ...unassigned];
                 colors = assigneeColors;
             }
 
