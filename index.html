@@ -1637,32 +1637,7 @@
                     .tickFormat('')
                 );
 
-            // Linhas de referência para 7 e 10
-            g.append('line')
-                .attr('class', 'reference-line')
-                .attr('x1', 0)
-                .attr('x2', width)
-                .attr('y1', y(7))
-                .attr('y2', y(7));
-
-            g.append('text')
-                .attr('class', 'reference-text')
-                .attr('x', width - 5)
-                .attr('y', y(7) - 3)
-                .text('7');
-
-            g.append('line')
-                .attr('class', 'reference-line')
-                .attr('x1', 0)
-                .attr('x2', width)
-                .attr('y1', y(10))
-                .attr('y2', y(10));
-
-            g.append('text')
-                .attr('class', 'reference-text')
-                .attr('x', width - 5)
-                .attr('y', y(10) - 3)
-                .text('10');
+            // Não adicionar linhas de referência no gráfico empilhado
 
             // Eixo X customizado com 3 níveis: semanas, meses e anos
             const xAxis = g.append('g')
@@ -1945,8 +1920,8 @@
                         .ticks(4)
                     );
 
-                // Linhas de referência para 7 e 10 (em todos os gráficos)
-                if (globalMaxEffort >= 7) {
+                // Linhas de referência para 7 e 10 (apenas para visualização por pessoa)
+                if (currentGroupingCategory === 'assignee' && globalMaxEffort >= 7) {
                     g.append('line')
                         .attr('class', 'reference-line')
                         .attr('x1', 0)
@@ -1958,10 +1933,10 @@
                         .attr('class', 'reference-text')
                         .attr('x', width - 5)
                         .attr('y', globalY(7) - 3)
-                        .text('7');
+                        .text('70%');
                 }
 
-                if (globalMaxEffort >= 10) {
+                if (currentGroupingCategory === 'assignee' && globalMaxEffort >= 10) {
                     g.append('line')
                         .attr('class', 'reference-line')
                         .attr('x1', 0)
@@ -1973,7 +1948,7 @@
                         .attr('class', 'reference-text')
                         .attr('x', width - 5)
                         .attr('y', globalY(10) - 3)
-                        .text('10');
+                        .text('100%');
                 }
 
                 // Eixo X completo em todos os gráficos (não só no último)
