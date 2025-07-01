@@ -21,6 +21,40 @@
         .container {
             max-width: 1400px;
             margin: 0 auto;
+            position: relative;
+        }
+
+        .language-selector {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .language-option {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 12px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .language-option:hover {
+            border-color: #6F02FD;
+        }
+
+        .language-option.active {
+            border-color: #6F02FD;
+            background: #6F02FD;
+            color: white;
         }
 
         h1 {
@@ -137,6 +171,32 @@
             background: #6F02FD;
         }
 
+        .filter-info {
+            background: #f5f5f5;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+        }
+
+        .filter-info .reset-button {
+            padding: 8px 16px;
+            background: #666;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-left: 10px;
+            font-size: 13px;
+        }
+
+        .filter-info .reset-button:hover {
+            background: #888;
+        }
+
         .visualization-container {
             background: white;
             padding: 30px;
@@ -205,35 +265,6 @@
 
         .tooltip-info {
             margin-bottom: 3px;
-        }
-
-        .summary-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            border-left: 4px solid #6F02FD;
-        }
-
-        .stat-value {
-            font-size: 32px;
-            font-weight: 300;
-            color: #6F02FD;
-            margin-bottom: 2px;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
         .axis text {
@@ -430,30 +461,6 @@
             align-items: center;
         }
 
-        .effort-adjustment {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: #f5f5f5;
-            padding: 5px 10px;
-            border-radius: 4px;
-        }
-
-        .effort-adjustment label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #373737;
-        }
-
-        .effort-adjustment input {
-            width: 60px;
-            padding: 4px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            font-size: 12px;
-            text-align: center;
-        }
-
         .timeline-chart {
             margin-top: 10px;
             height: 130px;
@@ -469,95 +476,66 @@
         .month-bar:hover {
             opacity: 0.8;
         }
-
-        .control-button.secondary {
-            padding: 8px; 
-            font-size: 13px;
-            background: #666;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.2s;
-            margin-top: 10px; 
-            width: 100%;
-        }
-
-        .control-button.secondary:hover {
-            background: #888;
-        }
-
-
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>Visualização de Esforço</h1>
+        <div class="language-selector">
+            <div class="language-option active" id="pt-br" onclick="changeLanguage('pt-br')">
+                <span>PT-BR</span>
+            </div>
+            <div class="language-option" id="en-us" onclick="changeLanguage('en-us')">
+                <span>EN</span>
+            </div>
+        </div>
+
+        <h1 id="main-title">Visualização de Esforço</h1>
 
         <div class="upload-area" id="uploadArea">
             <input type="file" id="fileInput" class="upload-input" accept=".csv">
-            <div style="font-size: 20px; color: #6F02FD; margin-bottom: 10px;">📊 Carregar arquivo CSV</div>
-            <div style="font-size: 14px; color: #666;">Arraste o arquivo aqui ou clique para selecionar</div>
+            <div style="font-size: 20px; color: #6F02FD; margin-bottom: 10px;" id="upload-title">📊 Carregar arquivo CSV</div>
+            <div style="font-size: 14px; color: #666;" id="upload-subtitle">Arraste o arquivo aqui ou clique para selecionar</div>
         </div>
 
         <button class="progress-button" id="progressViewBtn" onclick="toggleProgressView()" style="display: none;">
-            📈 Visualizar Progresso por Projeto
+            <span id="progress-btn-text">📈 Visualizar Progresso por Projeto</span>
         </button>
 
         <div class="controls" id="controls" style="display: none;">
             <div class="control-group">
-                <label class="control-label">Tipo de Visualização</label>
+                <label class="control-label" id="viz-type-label">Tipo de Visualização</label>
                 <div class="toggle-buttons">
-                    <button class="toggle-button active" id="stackedBtn" onclick="setVisualizationType('stacked')">Barras Empilhadas</button>
-                    <button class="toggle-button" id="separateBtn" onclick="setVisualizationType('separate')">Gráficos Separados</button>
+                    <button class="toggle-button active" id="stackedBtn" onclick="setVisualizationType('stacked')" data-key="stacked-bars">Barras Empilhadas</button>
+                    <button class="toggle-button" id="separateBtn" onclick="setVisualizationType('separate')" data-key="separate-charts">Gráficos Separados</button>
                 </div>
             </div>
 
             <div class="control-group">
-                <label class="control-label">Agrupar por</label>
+                <label class="control-label" id="group-by-label">Agrupar por</label>
                 <div class="toggle-buttons">
-                    <button class="toggle-button active" id="typeBtn" onclick="setGroupingCategory('type')">Por Tipo</button>
-                    <button class="toggle-button" id="assigneeBtn" onclick="setGroupingCategory('assignee')">Por Pessoa</button>
+                    <button class="toggle-button active" id="typeBtn" onclick="setGroupingCategory('type')" data-key="by-type">Por Tipo</button>
+                    <button class="toggle-button" id="assigneeBtn" onclick="setGroupingCategory('assignee')" data-key="by-person">Por Pessoa</button>
                 </div>
             </div>
+        </div>
 
-            <div class="control-group">
-                <label class="control-label">Intervalo de Datas</label>
-                <div style="display: flex; gap: 10px;">
-                    <input type="date" id="startDate" onchange="updateDateRange()">
-                    <input type="date" id="endDate" onchange="updateDateRange()">
-                </div>
-                <button class="control-button secondary" onclick="resetDateRange()" id="resetDateBtn">
-                    Mostrar Período Completo
-                </button>
-            </div>
+        <div class="filter-info" id="filterInfo" style="display: none;">
+            <span id="filter-info-text">Clique no ano ou mês no eixo do gráfico para filtrar período</span>
+            <button class="reset-button" onclick="resetDateRange()" id="resetDateBtn" data-key="show-full-period">
+                Mostrar Período Completo
+            </button>
         </div>
 
         <div class="progress-controls" id="progressControls" style="display: none;">
             <div class="progress-control">
-                <label>Mês de Referência:</label>
+                <label id="reference-month-label">Mês de Referência:</label>
                 <select id="referenceMonth" onchange="updateProgressCalculations()"></select>
             </div>
-            <button class="progress-button" onclick="toggleProgressView()">
+            <button class="progress-button" onclick="toggleProgressView()" id="back-btn" data-key="back">
                 ← Voltar
             </button>
-        </div>
-
-        <div class="summary-stats" id="summaryStats" style="display: none;">
-            <div class="stat-card">
-                <div class="stat-value" id="avgWeekly">0</div>
-                <div class="stat-label">Média Semanal</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="peakEffort">0</div>
-                <div class="stat-label">Pico de Esforço</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="activeItems">0</div>
-                <div class="stat-label" id="activeItemsLabel">Projetos Ativos</div>
-            </div>
         </div>
 
         <div class="visualization-container" id="visualizationContainer">
@@ -569,6 +547,248 @@
     <div class="tooltip" id="tooltip"></div>
 
     <script>
+        // Sistema de tradução
+        let currentLanguage = 'pt-br';
+        
+        const translations = {
+            'pt-br': {
+                'main-title': 'Visualização de Esforço',
+                'upload-title': '📊 Carregar arquivo CSV',
+                'upload-subtitle': 'Arraste o arquivo aqui ou clique para selecionar',
+                'progress-btn-text': '📈 Visualizar Progresso por Projeto',
+                'viz-type-label': 'Tipo de Visualização',
+                'stacked-bars': 'Barras Empilhadas',
+                'separate-charts': 'Gráficos Separados',
+                'group-by-label': 'Agrupar por',
+                'by-type': 'Por Tipo',
+                'by-person': 'Por Pessoa',
+                'filter-info-text': 'Clique no ano ou mês no eixo do gráfico para filtrar período',
+                'show-full-period': 'Mostrar Período Completo',
+                'reference-month-label': 'Mês de Referência:',
+                'back': '← Voltar',
+                'effort-label': 'Esforço',
+                'today': 'Hoje',
+                'week-short': 'Sem:',
+                'unassigned': 'Não atribuído',
+                'no-file-error': 'Por favor, selecione um arquivo CSV',
+                'file-read-error': 'Erro ao ler o arquivo: ',
+                'no-valid-tasks': 'Nenhuma tarefa válida encontrada.\n\nVerifique se o arquivo possui:\n- Coluna \'Task\' preenchida\n- Coluna \'Due Date\' preenchida\n- Coluna \'Effort\' com valores numéricos\n\nTarefas processadas: {valid}\nTarefas inválidas: {invalid}',
+                'project': 'Projeto',
+                'date': 'Data',
+                'project-effort': 'Esforço do projeto',
+                'total-effort-in': 'Esforço total em',
+                'total-effort-of': 'Esforço total de',
+                'people-in-project': 'Pessoas neste projeto:',
+                'work-types': 'Tipos de trabalho:',
+                'total-general-effort': 'Esforço total geral',
+                'remaining-project-percentage': '% Restante do Projeto em {year} - {project}',
+                'inform-percentage': 'Informe quanto % do projeto ainda resta a ser realizado no ano {year}:',
+                'completed-effort-year': 'Esforço concluído no {year}:',
+                'remaining-effort-year': 'Esforço restante no {year}:',
+                'total-planned-year': 'Total planejado para {year}:',
+                'cancel': 'Cancelar',
+                'save': 'Salvar',
+                'no-future-activities': 'Sem atividades futuras no ano {year} a partir do mês de referência',
+                'total-year': 'Total {year}:',
+                'completed': 'Concluído',
+                'accomplished': 'Realizado',
+                'lines-ignored': 'linhas foram ignoradas por não terem dados válidos.',
+                'total': 'Total',
+                'completed-short': 'Concluído',
+                'remaining': 'Restante',
+                'points': 'pontos',
+                'january': 'janeiro',
+                'february': 'fevereiro',
+                'march': 'março',
+                'april': 'abril',
+                'may': 'maio',
+                'june': 'junho',
+                'july': 'julho',
+                'august': 'agosto',
+                'september': 'setembro',
+                'october': 'outubro',
+                'november': 'novembro',
+                'december': 'dezembro',
+                'jan': 'jan',
+                'feb': 'fev',
+                'mar': 'mar',
+                'apr': 'abr',
+                'may-short': 'mai',
+                'jun': 'jun',
+                'jul': 'jul',
+                'aug': 'ago',
+                'sep': 'set',
+                'oct': 'out',
+                'nov': 'nov',
+                'dec': 'dez'
+            },
+            'en-us': {
+                'main-title': 'Effort Visualization',
+                'upload-title': '📊 Load CSV file',
+                'upload-subtitle': 'Drag file here or click to select',
+                'progress-btn-text': '📈 View Project Progress',
+                'viz-type-label': 'Visualization Type',
+                'stacked-bars': 'Stacked Bars',
+                'separate-charts': 'Separate Charts',
+                'group-by-label': 'Group by',
+                'by-type': 'By Type',
+                'by-person': 'By Person',
+                'filter-info-text': 'Click on year or month in chart axis to filter period',
+                'show-full-period': 'Show Full Period',
+                'reference-month-label': 'Reference Month:',
+                'back': '← Back',
+                'effort-label': 'Effort',
+                'today': 'Today',
+                'week-short': 'Wk:',
+                'unassigned': 'Unassigned',
+                'no-file-error': 'Please select a CSV file',
+                'file-read-error': 'Error reading file: ',
+                'no-valid-tasks': 'No valid tasks found.\n\nPlease check if the file has:\n- \'Task\' column filled\n- \'Due Date\' column filled\n- \'Effort\' column with numeric values\n\nProcessed tasks: {valid}\nInvalid tasks: {invalid}',
+                'project': 'Project',
+                'date': 'Date',
+                'project-effort': 'Project effort',
+                'total-effort-in': 'Total effort in',
+                'total-effort-of': 'Total effort of',
+                'people-in-project': 'People in this project:',
+                'work-types': 'Work types:',
+                'total-general-effort': 'Total general effort',
+                'remaining-project-percentage': '% Remaining of Project in {year} - {project}',
+                'inform-percentage': 'Enter what % of the project still remains to be completed in {year}:',
+                'completed-effort-year': 'Completed effort in {year}:',
+                'remaining-effort-year': 'Remaining effort in {year}:',
+                'total-planned-year': 'Total planned for {year}:',
+                'cancel': 'Cancel',
+                'save': 'Save',
+                'no-future-activities': 'No future activities in {year} from reference month',
+                'total-year': 'Total {year}:',
+                'completed': 'Completed',
+                'accomplished': 'Accomplished',
+                'lines-ignored': 'lines were ignored for not having valid data.',
+                'total': 'Total',
+                'completed-short': 'Completed',
+                'remaining': 'Remaining',
+                'points': 'points',
+                'january': 'January',
+                'february': 'February',
+                'march': 'March',
+                'april': 'April',
+                'may': 'May',
+                'june': 'June',
+                'july': 'July',
+                'august': 'August',
+                'september': 'September',
+                'october': 'October',
+                'november': 'November',
+                'december': 'December',
+                'jan': 'Jan',
+                'feb': 'Feb',
+                'mar': 'Mar',
+                'apr': 'Apr',
+                'may-short': 'May',
+                'jun': 'Jun',
+                'jul': 'Jul',
+                'aug': 'Aug',
+                'sep': 'Sep',
+                'oct': 'Oct',
+                'nov': 'Nov',
+                'dec': 'Dec'
+            }
+        };
+
+        // Função para trocar idioma
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            
+            // Atualizar seletores visuais
+            document.getElementById('pt-br').classList.toggle('active', lang === 'pt-br');
+            document.getElementById('en-us').classList.toggle('active', lang === 'en-us');
+            
+            // Atualizar todos os textos
+            updateAllTexts();
+            
+            // Se há dados carregados, reprocessar e atualizar visualização
+            if (tasksData.length > 0) {
+                processData();
+                updateVisualization();
+            }
+        }
+
+        // Função para atualizar todos os textos da página
+        function updateAllTexts() {
+            const texts = translations[currentLanguage];
+            
+            // Atualizar elementos com IDs
+            Object.keys(texts).forEach(key => {
+                const element = document.getElementById(key);
+                if (element) {
+                    element.textContent = texts[key];
+                }
+            });
+            
+            // Atualizar botões com data-key
+            document.querySelectorAll('[data-key]').forEach(element => {
+                const key = element.getAttribute('data-key');
+                if (texts[key]) {
+                    element.textContent = texts[key];
+                }
+            });
+        }
+
+        // Função para obter texto traduzido
+        function t(key, replacements = {}) {
+            let text = translations[currentLanguage][key] || key;
+            
+            // Substituir placeholders
+            Object.keys(replacements).forEach(placeholder => {
+                text = text.replace(`{${placeholder}}`, replacements[placeholder]);
+            });
+            
+            return text;
+        }
+
+        // Função para traduzir nomes de meses
+        function translateMonth(monthName, short = false) {
+            const monthMap = {
+                'pt-br': {
+                    'January': short ? 'Jan' : 'Janeiro',
+                    'February': short ? 'Fev' : 'Fevereiro', 
+                    'March': short ? 'Mar' : 'Março',
+                    'April': short ? 'Abr' : 'Abril',
+                    'May': short ? 'Mai' : 'Maio',
+                    'June': short ? 'Jun' : 'Junho',
+                    'July': short ? 'Jul' : 'Julho',
+                    'August': short ? 'Ago' : 'Agosto',
+                    'September': short ? 'Set' : 'Setembro',
+                    'October': short ? 'Out' : 'Outubro',
+                    'November': short ? 'Nov' : 'Novembro',
+                    'December': short ? 'Dez' : 'Dezembro',
+                    'Jan': 'Jan', 'Feb': 'Fev', 'Mar': 'Mar', 'Apr': 'Abr',
+                    'May': 'Mai', 'Jun': 'Jun', 'Jul': 'Jul', 'Aug': 'Ago',
+                    'Sep': 'Set', 'Oct': 'Out', 'Nov': 'Nov', 'Dec': 'Dez'
+                },
+                'en-us': {
+                    'janeiro': short ? 'Jan' : 'January',
+                    'fevereiro': short ? 'Feb' : 'February',
+                    'março': short ? 'Mar' : 'March', 
+                    'abril': short ? 'Apr' : 'April',
+                    'maio': short ? 'May' : 'May',
+                    'junho': short ? 'Jun' : 'June',
+                    'julho': short ? 'Jul' : 'July',
+                    'agosto': short ? 'Aug' : 'August',
+                    'setembro': short ? 'Sep' : 'September',
+                    'outubro': short ? 'Oct' : 'October',
+                    'novembro': short ? 'Nov' : 'November',
+                    'dezembro': short ? 'Dec' : 'December',
+                    'jan': 'Jan', 'fev': 'Feb', 'mar': 'Mar', 'abr': 'Apr',
+                    'mai': 'May', 'jun': 'Jun', 'jul': 'Jul', 'ago': 'Aug',
+                    'set': 'Sep', 'out': 'Oct', 'nov': 'Nov', 'dez': 'Dec'
+                }
+            };
+
+            const map = monthMap[currentLanguage];
+            return map && map[monthName] ? map[monthName] : monthName;
+        }
+
         // Variáveis globais
         let tasksData = [];
         let processedData = [];
@@ -712,7 +932,7 @@
         // Processar arquivo - CORRIGIDO para lidar com diferentes formatos
         function handleFile(file) {
             if (!file.name.endsWith('.csv')) {
-                alert('Por favor, selecione um arquivo CSV');
+                alert(t('no-file-error'));
                 return;
             }
 
@@ -753,18 +973,18 @@
                     tasksData = processedTasks;
 
                     if (tasksData.length === 0) {
-                        alert(`Nenhuma tarefa válida encontrada.\n\nVerifique se o arquivo possui:\n- Coluna 'Task' preenchida\n- Coluna 'Due Date' preenchida\n- Coluna 'Effort' com valores numéricos\n\nTarefas processadas: ${validCount}\nTarefas inválidas: ${invalidCount}`);
+                        alert(t('no-valid-tasks', {valid: validCount, invalid: invalidCount}));
                         return;
                     }
 
                     if (invalidCount > 0) {
-                        console.warn(`${invalidCount} linhas foram ignoradas por não terem dados válidos.`);
+                        console.warn(`${invalidCount} ${t('lines-ignored')}`);
                     }
 
                     initializeVisualization();
                 },
                 error: function(error) {
-                    alert('Erro ao ler o arquivo: ' + error.message);
+                    alert(t('file-read-error') + error.message);
                 }
             });
         }
@@ -785,16 +1005,16 @@
             });
 
             // Atribuir cores apenas para pessoas com email (não para "Não atribuído")
-            const uniqueAssignees = [...new Set(tasksData.map(t => {
-                const originalAssignee = t.Assignee;
+            const uniqueAssignees = [...new Set(tasksData.map(task => {
+                const originalAssignee = task.Assignee;
                 const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
-                return simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${t.Type}`;
+                return simplifiedAssignee ? simplifiedAssignee : `${t('unassigned')} / ${task.Type}`;
             }))];
             
             let colorIndex = 0;
             uniqueAssignees.forEach((assignee) => {
-                // Se começa com "Não atribuído", usar cinza
-                if (assignee.startsWith('Não atribuído')) {
+                // Se começa com "Não atribuído" ou "Unassigned", usar cinza
+                if (assignee.includes(t('unassigned'))) {
                     assigneeColors[assignee] = '#999999';
                 // Se é uma pessoa específica conhecida, usar cor específica
                 } else if (specificPersonColors[assignee]) {
@@ -807,13 +1027,9 @@
             });
 
             // Encontrar range de datas
-            const allDates = tasksData.flatMap(t => [t.startDate, t.endDate]);
+            const allDates = tasksData.flatMap(task => [task.startDate, task.endDate]);
             const minDate = new Date(Math.min(...allDates));
             const maxDate = new Date(Math.max(...allDates));
-
-            // Configurar controles
-            document.getElementById('startDate').value = minDate.toISOString().split('T')[0];
-            document.getElementById('endDate').value = maxDate.toISOString().split('T')[0];
 
             // Salvar período original
             originalDateRange.start = minDate.toISOString().split('T')[0];
@@ -821,7 +1037,7 @@
 
             // Mostrar controles
             document.getElementById('controls').style.display = 'flex';
-            document.getElementById('summaryStats').style.display = 'grid';
+            document.getElementById('filterInfo').style.display = 'block';
             document.getElementById('visualizationContainer').classList.add('active');
             document.getElementById('progressViewBtn').style.display = 'block';
 
@@ -837,7 +1053,7 @@
             if (progressMode) {
                 // Esconder controles principais e mostrar controles de progresso
                 document.getElementById('controls').style.display = 'none';
-                document.getElementById('summaryStats').style.display = 'none';
+                document.getElementById('filterInfo').style.display = 'none';
                 document.getElementById('progressControls').style.display = 'flex';
                 document.getElementById('progressViewBtn').style.display = 'none';
                 
@@ -849,7 +1065,7 @@
             } else {
                 // Voltar para visualização normal
                 document.getElementById('controls').style.display = 'flex';
-                document.getElementById('summaryStats').style.display = 'grid';
+                document.getElementById('filterInfo').style.display = 'block';
                 document.getElementById('progressControls').style.display = 'none';
                 document.getElementById('progressViewBtn').style.display = 'block';
                 
@@ -898,7 +1114,8 @@
                 option.value = month;
                 const [year, monthNum] = month.split('-');
                 const date = new Date(year, parseInt(monthNum) - 1, 1);
-                option.textContent = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                const monthName = date.toLocaleDateString(currentLanguage === 'pt-br' ? 'pt-BR' : 'en-US', { month: 'long', year: 'numeric' });
+                option.textContent = monthName;
                 monthSelect.appendChild(option);
             });
             
@@ -932,10 +1149,11 @@
             updateVisualization();
         }
 
-        // Processar dados (apenas por semanas agora)
+        // Processar dados
         function processData() {
-            const startDate = new Date(document.getElementById('startDate').value);
-            const endDate = new Date(document.getElementById('endDate').value);
+            // Usar o período original completo
+            const startDate = new Date(originalDateRange.start);
+            const endDate = new Date(originalDateRange.end);
             
             // Criar estrutura de dados por período
             const dataByPeriod = {};
@@ -975,14 +1193,14 @@
                             dataByPeriod[dateKey].byType[task.Type].tasks.push({
                                 name: task.Task,
                                 project: task.Project,
-                                assignee: task.Assignee || 'Não atribuído',
+                                assignee: task.Assignee || t('unassigned'),
                                 effort: task.effortPerDay
                             });
 
                             // Por pessoa
                             const originalAssignee = task.Assignee;
                             const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
-                            const assignee = simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${task.Type}`;
+                            const assignee = simplifiedAssignee ? simplifiedAssignee : `${t('unassigned')} / ${task.Type}`;
                             
                             if (!dataByPeriod[dateKey].byAssignee[assignee]) {
                                 dataByPeriod[dateKey].byAssignee[assignee] = {
@@ -1030,8 +1248,6 @@
 
             // Processar dados de progresso por projeto
             processProjectProgress();
-
-            updateSummaryStats();
         }
 
         // Processar progresso dos projetos
@@ -1219,20 +1435,20 @@
                 : Math.round((project.remainingEffortCurrentYear / project.totalEffortCurrentYear) * 100);
             
             modal.innerHTML = `
-                <div class="modal-title">% Restante do Projeto em ${currentYear} - ${projectName}</div>
+                <div class="modal-title">${t('remaining-project-percentage', {year: currentYear, project: projectName})}</div>
                 <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
-                    Informe quanto % do projeto ainda resta a ser realizado no ano ${currentYear}:
+                    ${t('inform-percentage', {year: currentYear})}
                 </p>
                 <input type="number" class="modal-input" id="modalPercentageInput" 
                        value="${remainingPercentage}" min="0" max="100" step="1">
                 <p style="margin-bottom: 20px; color: #666; font-size: 12px;">
-                    Esforço concluído no ${currentYear}: ${Math.round(project.completedEffortCurrentYear)} pontos<br>
-                    Esforço restante no ${currentYear}: ${Math.round(calculateRemainingFromReference(project, referenceMonth))} pontos<br>
-                    Total planejado para ${currentYear}: ${Math.round(project.totalEffortCurrentYear)} pontos
+                    ${t('completed-effort-year', {year: currentYear})} ${Math.round(project.completedEffortCurrentYear)} ${t('points')}<br>
+                    ${t('remaining-effort-year', {year: currentYear})} ${Math.round(calculateRemainingFromReference(project, referenceMonth))} ${t('points')}<br>
+                    ${t('total-planned-year', {year: currentYear})} ${Math.round(project.totalEffortCurrentYear)} ${t('points')}
                 </p>
                 <div class="modal-buttons">
-                    <button class="modal-button secondary" onclick="closePercentageModal()">Cancelar</button>
-                    <button class="modal-button primary" onclick="savePercentage('${projectName}')">Salvar</button>
+                    <button class="modal-button secondary" onclick="closePercentageModal()">${t('cancel')}</button>
+                    <button class="modal-button primary" onclick="savePercentage('${projectName}')">${t('save')}</button>
                 </div>
             `;
             
@@ -1349,33 +1565,6 @@
             return new Date(d.setDate(diff));
         }
 
-        // Atualizar estatísticas
-        function updateSummaryStats() {
-            const totalEffort = processedData.reduce((sum, d) => sum + d.total, 0);
-            const avgWeekly = totalEffort / processedData.length;
-            const peakEffort = Math.max(...processedData.map(d => d.total));
-            
-            let activeItems;
-            let labelText;
-            
-            if (currentGroupingCategory === 'type') {
-                activeItems = new Set(tasksData.map(t => t.Project)).size;
-                labelText = 'Projetos Ativos';
-            } else {
-                activeItems = new Set(tasksData.map(t => {
-                    const originalAssignee = t.Assignee;
-                    const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
-                    return simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${t.Type}`;
-                })).size;
-                labelText = 'Pessoas Ativas';
-            }
-
-            document.getElementById('avgWeekly').textContent = Math.round(avgWeekly);
-            document.getElementById('peakEffort').textContent = Math.round(peakEffort);
-            document.getElementById('activeItems').textContent = activeItems;
-            document.getElementById('activeItemsLabel').textContent = labelText;
-        }
-
         // Atualizar visualização
         function updateVisualization() {
             const chartDiv = document.getElementById('chart');
@@ -1448,13 +1637,13 @@
 
                 const totalEffort = project.totalEffortAdjusted || project.totalEffortCurrentYear;
                 stats.append('span')
-                    .text(`Total ${currentYear}: ${Math.round(totalEffort)} pts`);
+                    .text(`${t('total-year', {year: currentYear})} ${Math.round(totalEffort)} pts`);
 
                 stats.append('span')
-                    .text(`Concluído: ${Math.round(project.completedEffortCurrentYear)} pts`);
+                    .text(`${t('completed')}: ${Math.round(project.completedEffortCurrentYear)} pts`);
 
                 stats.append('span')
-                    .text(`Realizado: ${Math.round(100 - (project.remainingPercentage || 100))}%`);
+                    .text(`${t('accomplished')}: ${Math.round(100 - (project.remainingPercentage || 100))}%`);
 
                 // Timeline chart
                 drawProjectTimeline(content, project, globalMonths);
@@ -1481,7 +1670,7 @@
                     .style('padding', '20px')
                     .style('color', '#666')
                     .style('font-style', 'italic')
-                    .text(`Sem atividades futuras no ano ${currentYear} a partir do mês de referência`);
+                    .text(t('no-future-activities', {year: currentYear}));
                 return;
             }
 
@@ -1586,7 +1775,7 @@
                     .tickFormat(d => {
                         const [year, month] = d.split('-');
                         const date = new Date(year, parseInt(month) - 1, 1);
-                        return date.toLocaleDateString('pt-BR', { month: 'short' });
+                        return translateMonth(date.toLocaleDateString('en-US', { month: 'short' }), true);
                     })
                 )
                 .selectAll('text')
@@ -1613,11 +1802,12 @@
                         const tooltip = document.getElementById('tooltip');
                         const [year, month] = d.month.split('-');
                         const date = new Date(year, parseInt(month) - 1, 1);
+                        const monthName = date.toLocaleDateString(currentLanguage === 'pt-br' ? 'pt-BR' : 'en-US', { month: 'long', year: 'numeric' });
                         tooltip.innerHTML = `
-                            <div class="tooltip-title">${date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</div>
-                            <div class="tooltip-info">Total: ${d.totalPercentage.toFixed(1)}% (${Math.round(d.totalEffort)} pts)</div>
-                            <div class="tooltip-info">Concluído: ${d.percentageCompleted.toFixed(1)}% (${Math.round(d.effortCompleted)} pts)</div>
-                            <div class="tooltip-info">Restante: ${d.percentageRemaining.toFixed(1)}% (${Math.round(d.effortRemaining)} pts)</div>
+                            <div class="tooltip-title">${monthName}</div>
+                            <div class="tooltip-info">${t('total')}: ${d.totalPercentage.toFixed(1)}% (${Math.round(d.totalEffort)} pts)</div>
+                            <div class="tooltip-info">${t('completed-short')}: ${d.percentageCompleted.toFixed(1)}% (${Math.round(d.effortCompleted)} pts)</div>
+                            <div class="tooltip-info">${t('remaining')}: ${d.percentageRemaining.toFixed(1)}% (${Math.round(d.effortRemaining)} pts)</div>
                         `;
                         tooltip.style.display = 'block';
                         tooltip.style.left = (event.pageX + 10) + 'px';
@@ -1642,11 +1832,12 @@
                         const tooltip = document.getElementById('tooltip');
                         const [year, month] = d.month.split('-');
                         const date = new Date(year, parseInt(month) - 1, 1);
+                        const monthName = date.toLocaleDateString(currentLanguage === 'pt-br' ? 'pt-BR' : 'en-US', { month: 'long', year: 'numeric' });
                         tooltip.innerHTML = `
-                            <div class="tooltip-title">${date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</div>
-                            <div class="tooltip-info">Total: ${d.totalPercentage.toFixed(1)}% (${Math.round(d.totalEffort)} pts)</div>
-                            <div class="tooltip-info">Concluído: ${d.percentageCompleted.toFixed(1)}% (${Math.round(d.effortCompleted)} pts)</div>
-                            <div class="tooltip-info">Restante: ${d.percentageRemaining.toFixed(1)}% (${Math.round(d.effortRemaining)} pts)</div>
+                            <div class="tooltip-title">${monthName}</div>
+                            <div class="tooltip-info">${t('total')}: ${d.totalPercentage.toFixed(1)}% (${Math.round(d.totalEffort)} pts)</div>
+                            <div class="tooltip-info">${t('completed-short')}: ${d.percentageCompleted.toFixed(1)}% (${Math.round(d.effortCompleted)} pts)</div>
+                            <div class="tooltip-info">${t('remaining')}: ${d.percentageRemaining.toFixed(1)}% (${Math.round(d.effortRemaining)} pts)</div>
                         `;
                         tooltip.style.display = 'block';
                         tooltip.style.left = (event.pageX + 10) + 'px';
@@ -1702,8 +1893,6 @@
                     .tickFormat('')
                 );
 
-            // Não adicionar linhas de referência no gráfico empilhado
-
             // Eixo X customizado com 3 níveis: semanas, meses e anos
             const xAxis = g.append('g')
                 .attr('class', 'axis')
@@ -1714,7 +1903,7 @@
                 date: d.date,
                 index: i,
                 weekNum: Math.floor(i) + 1,
-                month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
+                month: d.date.toLocaleDateString('en-US', { month: 'short' }),
                 year: d.date.getFullYear()
             }));
 
@@ -1751,7 +1940,7 @@
             // Adicionar labels de mês (nível 2)
             let currentMonth = '';
             weeks.forEach((week, i) => {
-                const monthName = week.month;
+                const monthName = translateMonth(week.month, true);
                 const monthYear = `${monthName}-${week.year}`;
                 
                 if (monthYear !== currentMonth) {
@@ -1780,7 +1969,7 @@
                         .style('font-size', '12px')
                         .style('font-weight', 'bold')
                         .style('fill', '#373737')
-                        .text(week.month.charAt(0).toUpperCase() + week.month.slice(1));
+                        .text(monthName.charAt(0).toUpperCase() + monthName.slice(1));
                 }
             });
 
@@ -1823,7 +2012,7 @@
                 .attr('y', 15)
                 .style('font-size', '10px')
                 .style('fill', '#999')
-                .text('Sem:');
+                .text(t('week-short'));
 
             g.append('g')
                 .attr('class', 'axis')
@@ -1838,7 +2027,7 @@
                 .style('text-anchor', 'middle')
                 .style('font-size', '14px')
                 .style('fill', '#666')
-                .text('Esforço');
+                .text(t('effort-label'));
 
             // Preparar dados para empilhamento
             let categories;
@@ -1848,15 +2037,15 @@
                 categories = [...new Set(tasksData.map(t => t.Type))].sort();
                 colors = typeColors;
             } else {
-                const allAssignees = [...new Set(tasksData.map(t => {
-                    const originalAssignee = t.Assignee;
+                const allAssignees = [...new Set(tasksData.map(task => {
+                    const originalAssignee = task.Assignee;
                     const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
-                    return simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${t.Type}`;
+                    return simplifiedAssignee ? simplifiedAssignee : `${t('unassigned')} / ${task.Type}`;
                 }))];
                 
-                // Separar pessoas reais dos "Não atribuído"
-                const realPeople = allAssignees.filter(a => !a.startsWith('Não atribuído')).sort();
-                const unassigned = allAssignees.filter(a => a.startsWith('Não atribuído')).sort();
+                // Separar pessoas reais dos "Não atribuído"/"Unassigned"
+                const realPeople = allAssignees.filter(a => !a.includes(t('unassigned'))).sort();
+                const unassigned = allAssignees.filter(a => a.includes(t('unassigned'))).sort();
                 
                 // Colocar pessoas primeiro, depois "Não atribuído"
                 categories = [...realPeople, ...unassigned];
@@ -1929,15 +2118,15 @@
                 categories = [...new Set(tasksData.map(t => t.Type))].sort();
                 colors = typeColors;
             } else {
-                const allAssignees = [...new Set(tasksData.map(t => {
-                    const originalAssignee = t.Assignee;
+                const allAssignees = [...new Set(tasksData.map(task => {
+                    const originalAssignee = task.Assignee;
                     const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
-                    return simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${t.Type}`;
+                    return simplifiedAssignee ? simplifiedAssignee : `${t('unassigned')} / ${task.Type}`;
                 }))];
                 
-                // Separar pessoas reais dos "Não atribuído"
-                const realPeople = allAssignees.filter(a => !a.startsWith('Não atribuído')).sort();
-                const unassigned = allAssignees.filter(a => a.startsWith('Não atribuído')).sort();
+                // Separar pessoas reais dos "Não atribuído"/"Unassigned"
+                const realPeople = allAssignees.filter(a => !a.includes(t('unassigned'))).sort();
+                const unassigned = allAssignees.filter(a => a.includes(t('unassigned'))).sort();
                 
                 // Colocar pessoas primeiro, depois "Não atribuído"
                 categories = [...realPeople, ...unassigned];
@@ -2038,7 +2227,7 @@
                         .text('100%');
                 }
 
-                // Eixo X completo em todos os gráficos (não só no último)
+                // Eixo X completo em todos os gráficos
                 const xAxis = g.append('g')
                     .attr('class', 'axis')
                     .attr('transform', `translate(0,${heightPerChart})`);
@@ -2048,7 +2237,7 @@
                     date: d.date,
                     index: i,
                     weekNum: Math.floor(i) + 1,
-                    month: d.date.toLocaleDateString('pt-BR', { month: 'short' }),
+                    month: d.date.toLocaleDateString('en-US', { month: 'short' }),
                     year: d.date.getFullYear()
                 }));
 
@@ -2083,7 +2272,7 @@
                 // Nível 2: Meses
                 let currentMonth = '';
                 weeks.forEach((week, i) => {
-                    const monthName = week.month;
+                    const monthName = translateMonth(week.month, true);
                     const monthYear = `${monthName}-${week.year}`;
                     
                     if (monthYear !== currentMonth) {
@@ -2111,7 +2300,7 @@
                             .style('font-size', '12px')
                             .style('font-weight', 'bold')
                             .style('fill', '#373737')
-                            .text(week.month.charAt(0).toUpperCase() + week.month.slice(1));
+                            .text(monthName.charAt(0).toUpperCase() + monthName.slice(1));
                     }
                 });
 
@@ -2152,7 +2341,7 @@
                     .attr('y', 15)
                     .style('font-size', '10px')
                     .style('fill', '#999')
-                    .text('Sem:');
+                    .text(t('week-short'));
 
                 g.append('g')
                     .attr('class', 'axis')
@@ -2255,7 +2444,7 @@
                     .style('font-weight', 'bold')
                     .style('fill', '#373737')
                     .style('pointer-events', 'none')
-                    .text('Hoje');
+                    .text(t('today'));
             }
         }
 
@@ -2307,19 +2496,19 @@
             const projectData = data.byProject[project];
             
             let content = `<div class="tooltip-title">${project}</div>`;
-            content += `<div class="tooltip-info">Data: ${data.date.toLocaleDateString('pt-BR')}</div>`;
-            content += `<div class="tooltip-info">Esforço do projeto: ${projectData.effort.toFixed(1)} pontos</div>`;
+            content += `<div class="tooltip-info">${t('date')}: ${data.date.toLocaleDateString(currentLanguage === 'pt-br' ? 'pt-BR' : 'en-US')}</div>`;
+            content += `<div class="tooltip-info">${t('project-effort')}: ${projectData.effort.toFixed(1)} ${t('points')}</div>`;
             
             if (currentGroupingCategory === 'type') {
                 const typeEffort = data.byType[category]?.effort || 0;
-                content += `<div class="tooltip-info">Esforço total em ${category}: ${typeEffort.toFixed(1)} pontos</div>`;
+                content += `<div class="tooltip-info">${t('total-effort-in')} ${category}: ${typeEffort.toFixed(1)} ${t('points')}</div>`;
                 
                 const assigneesInType = Object.entries(projectData.assignees || {})
                     .filter(([assignee, effort]) => effort > 0);
                 
                 if (assigneesInType.length > 0) {
                     content += '<div style="margin-top: 8px; border-top: 1px solid #666; padding-top: 8px;">';
-                    content += '<div style="font-weight: bold; margin-bottom: 4px;">Pessoas neste projeto:</div>';
+                    content += `<div style="font-weight: bold; margin-bottom: 4px;">${t('people-in-project')}</div>`;
                     assigneesInType.forEach(([assignee, effort]) => {
                         content += `<div style="font-size: 11px;">• ${assignee}: ${effort.toFixed(1)} pts</div>`;
                     });
@@ -2327,14 +2516,14 @@
                 }
             } else {
                 const assigneeEffort = data.byAssignee[category]?.effort || 0;
-                content += `<div class="tooltip-info">Esforço total de ${category}: ${assigneeEffort.toFixed(1)} pontos</div>`;
+                content += `<div class="tooltip-info">${t('total-effort-of')} ${category}: ${assigneeEffort.toFixed(1)} ${t('points')}</div>`;
                 
                 const typesForAssignee = Object.entries(projectData.types || {})
                     .filter(([type, effort]) => effort > 0);
                 
                 if (typesForAssignee.length > 0) {
                     content += '<div style="margin-top: 8px; border-top: 1px solid #666; padding-top: 8px;">';
-                    content += '<div style="font-weight: bold; margin-bottom: 4px;">Tipos de trabalho:</div>';
+                    content += `<div style="font-weight: bold; margin-bottom: 4px;">${t('work-types')}</div>`;
                     typesForAssignee.forEach(([type, effort]) => {
                         content += `<div style="font-size: 11px;">• ${type}: ${effort.toFixed(1)} pts</div>`;
                     });
@@ -2342,7 +2531,7 @@
                 }
             }
             
-            content += `<div class="tooltip-info" style="font-weight: bold; margin-top: 4px;">Esforço total geral: ${data.total.toFixed(1)} pontos</div>`;
+            content += `<div class="tooltip-info" style="font-weight: bold; margin-top: 4px;">${t('total-general-effort')}: ${data.total.toFixed(1)} ${t('points')}</div>`;
             
             tooltip.innerHTML = content;
             tooltip.style.display = 'block';
@@ -2391,15 +2580,15 @@
                 items = [...new Set(tasksData.map(t => t.Type))].sort();
                 colors = typeColors;
             } else {
-                const allAssignees = [...new Set(tasksData.map(t => {
-                    const originalAssignee = t.Assignee;
+                const allAssignees = [...new Set(tasksData.map(task => {
+                    const originalAssignee = task.Assignee;
                     const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
-                    return simplifiedAssignee ? simplifiedAssignee : `Não atribuído / ${t.Type}`;
+                    return simplifiedAssignee ? simplifiedAssignee : `${t('unassigned')} / ${task.Type}`;
                 }))];
                 
-                // Separar pessoas reais dos "Não atribuído"
-                const realPeople = allAssignees.filter(a => !a.startsWith('Não atribuído')).sort();
-                const unassigned = allAssignees.filter(a => a.startsWith('Não atribuído')).sort();
+                // Separar pessoas reais dos "Não atribuído"/"Unassigned"
+                const realPeople = allAssignees.filter(a => !a.includes(t('unassigned'))).sort();
+                const unassigned = allAssignees.filter(a => a.includes(t('unassigned'))).sort();
                 
                 // Colocar pessoas primeiro, depois "Não atribuído"
                 items = [...realPeople, ...unassigned];
@@ -2426,9 +2615,8 @@
         // Resetar para período completo
         function resetDateRange() {
             if (originalDateRange.start && originalDateRange.end) {
-                document.getElementById('startDate').value = originalDateRange.start;
-                document.getElementById('endDate').value = originalDateRange.end;
-                updateDateRange();
+                processData();
+                updateVisualization();
             }
         }
 
@@ -2437,21 +2625,31 @@
             const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
             const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
             
-            document.getElementById('startDate').value = monthStart.toISOString().split('T')[0];
-            document.getElementById('endDate').value = monthEnd.toISOString().split('T')[0];
+            // Filtrar processedData para apenas este mês
+            const filteredData = processedData.filter(d => {
+                return d.date >= monthStart && d.date <= monthEnd;
+            });
             
-            updateDateRange();
+            if (filteredData.length > 0) {
+                processedData = filteredData;
+                updateVisualization();
+            }
         }
 
         // Filtrar por ano
         function filterByYear(year) {
             const yearStart = new Date(year, 0, 1);
-            const yearEnd = new Date(year, 11, 31);
+            const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
             
-            document.getElementById('startDate').value = yearStart.toISOString().split('T')[0];
-            document.getElementById('endDate').value = yearEnd.toISOString().split('T')[0];
+            // Filtrar processedData para apenas este ano
+            const filteredData = processedData.filter(d => {
+                return d.date >= yearStart && d.date <= yearEnd;
+            });
             
-            updateDateRange();
+            if (filteredData.length > 0) {
+                processedData = filteredData;
+                updateVisualization();
+            }
         }
 
         // Funções de controle
@@ -2466,11 +2664,6 @@
             currentGroupingCategory = category;
             document.getElementById('typeBtn').classList.toggle('active', category === 'type');
             document.getElementById('assigneeBtn').classList.toggle('active', category === 'assignee');
-            processData();
-            updateVisualization();
-        }
-
-        function updateDateRange() {
             processData();
             updateVisualization();
         }
