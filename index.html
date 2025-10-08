@@ -232,10 +232,19 @@
             font-size: 14px;
             cursor: pointer;
             transition: opacity 0.3s;
+            user-select: none;
         }
 
         .legend-item:hover {
             opacity: 0.7;
+        }
+
+        .legend-item.inactive {
+            opacity: 0.4;
+        }
+
+        .legend-item.inactive .legend-color {
+            background: #ccc !important;
         }
 
         .legend-color {
@@ -801,6 +810,7 @@
         let progressMode = false;
         let referenceMonth = null;
         let projectRemainingPercentages = {};
+        let visibleCategories = {}; // Controla quais categorias estão visíveis
         
         // Cores por tipo - DEFINITIVAS
         const typeColors = {
@@ -821,45 +831,21 @@
             '#52BE80', '#F39C12', '#E74C3C', '#3498DB', '#9B59B6'
         ];
 
-        // Cores específicas para pessoas conhecidas
-        const specificPersonColors = {
-            'Amanda': '#6F02FD',
-            'Bárbara': '#3570DF', 
-            'Ana': '#6CDADE',
-            'Nate': '#FFA4E8',
-            'Vitória': '#2C0165',
-            'Giulia': '#FF6B6B',
-            'Sara': '#E6B800'  // Amarelo com bom contraste
-        };
-
-        // Mapeamento de emails para nomes simplificados
-        const emailToName = {
-            'amanda@odd.studio': 'Amanda',
-            'bárbara@odd.studio': 'Bárbara',
-            'barbara@odd.studio': 'Bárbara',
-            'ana.bertol@odd.studio': 'Ana',
-            'nate@odd.studio': 'Nate',
-            'vitória@odd.studio': 'Vitória',
-            'vitoria@odd.studio': 'Vitória',
-            'giulia@odd.studio': 'Giulia',
-            'sara@odd.studio': 'Sara'
-        };
-
-        // Função para simplificar nome/email
+        // Função para simplificar nome/email - genérica para qualquer email
         function simplifyAssignee(assignee) {
             if (!assignee) return null;
             
-            // Converter para minúsculas para comparação
-            const lowerAssignee = assignee.toLowerCase();
-            
-            // Procurar por correspondência no mapeamento
-            for (const [email, name] of Object.entries(emailToName)) {
-                if (lowerAssignee.includes(email.toLowerCase())) {
-                    return name;
-                }
+            // Se contém @, é email - extrair primeiro nome
+            if (assignee.includes('@')) {
+                // Pegar parte antes do @
+                const localPart = assignee.split('@')[0];
+                // Pegar primeira parte (antes de ponto ou underscore)
+                const firstName = localPart.split(/[._]/)[0];
+                // Capitalizar primeira letra
+                return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
             }
             
-            // Se não encontrou no mapeamento, retorna o valor original
+            // Se não é email, retorna o valor original
             return assignee;
         }
 
@@ -929,7 +915,7 @@
             }
         });
 
-        // Processar arquivo - CORRIGIDO para lidar com diferentes formatos
+        // Processar arquivo
         function handleFile(file) {
             if (!file.name.endsWith('.csv')) {
                 alert(t('no-file-error'));
@@ -938,30 +924,25 @@
 
             Papa.parse(file, {
                 header: true,
-                dynamicTyping: false, // MUDANÇA: Desabilitar conversão automática
+                dynamicTyping: false,
                 skipEmptyLines: true,
-                delimitersToGuess: [',', '\t', '|', ';'], // Tentar diferentes delimitadores
+                delimitersToGuess: [',', '\t', '|', ';'],
                 complete: function(results) {
-                    // Normalizar headers
                     const normalizedData = normalizeHeaders(results.data);
 
-                    // Processar e validar dados
                     const processedTasks = [];
                     let validCount = 0;
                     let invalidCount = 0;
 
                     normalizedData.forEach((row, index) => {
-                        // Normalizar o valor de esforço
                         const originalEffort = row.Effort || row.effort;
                         const normalizedEffort = normalizeEffortValue(originalEffort);
                         
-                        // Validar campos obrigatórios
                         const hasTask = row.Task && row.Task.toString().trim() !== '';
                         const hasDueDate = row['Due Date'] && row['Due Date'].toString().trim() !== '';
                         const hasEffort = normalizedEffort > 0;
 
                         if (hasTask && hasDueDate && hasEffort) {
-                            // Adicionar esforço normalizado
                             row.Effort = normalizedEffort;
                             processedTasks.push(row);
                             validCount++;
@@ -996,34 +977,34 @@
                 task.endDate = new Date(task['Due Date']);
                 task.startDate = task.Start ? new Date(task.Start) : new Date(task.endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
                 
-                // Calcular dias de duração
                 const daysDiff = Math.ceil((task.endDate - task.startDate) / (1000 * 60 * 60 * 24)) + 1;
                 task.effortPerDay = task.Effort / daysDiff;
                 
-                // Processar status de conclusão
                 task.Completed = task.Completed === true || task.Completed === 'TRUE' || task.Completed === 1;
             });
 
-            // Atribuir cores apenas para pessoas com email (não para "Não atribuído")
+            // Atribuir cores sequencialmente para pessoas
             const uniqueAssignees = [...new Set(tasksData.map(task => {
                 const originalAssignee = task.Assignee;
                 const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
                 return simplifiedAssignee ? simplifiedAssignee : `${t('unassigned')} / ${task.Type}`;
-            }))];
+            }))].sort();
             
             let colorIndex = 0;
             uniqueAssignees.forEach((assignee) => {
-                // Se começa com "Não atribuído" ou "Unassigned", usar cinza
                 if (assignee.includes(t('unassigned'))) {
                     assigneeColors[assignee] = '#999999';
-                // Se é uma pessoa específica conhecida, usar cor específica
-                } else if (specificPersonColors[assignee]) {
-                    assigneeColors[assignee] = specificPersonColors[assignee];
                 } else {
-                    // Outras pessoas recebem cores da paleta
                     assigneeColors[assignee] = assigneeColorPalette[colorIndex % assigneeColorPalette.length];
                     colorIndex++;
                 }
+                // Inicializar todos como visíveis
+                visibleCategories[assignee] = true;
+            });
+
+            // Inicializar tipos como visíveis
+            Object.keys(typeColors).forEach(type => {
+                visibleCategories[type] = true;
             });
 
             // Encontrar range de datas
@@ -1031,7 +1012,6 @@
             const minDate = new Date(Math.min(...allDates));
             const maxDate = new Date(Math.max(...allDates));
 
-            // Salvar período original
             originalDateRange.start = minDate.toISOString().split('T')[0];
             originalDateRange.end = maxDate.toISOString().split('T')[0];
 
@@ -1041,7 +1021,6 @@
             document.getElementById('visualizationContainer').classList.add('active');
             document.getElementById('progressViewBtn').style.display = 'block';
 
-            // Processar e visualizar
             processData();
             updateVisualization();
         }
@@ -1051,19 +1030,14 @@
             progressMode = !progressMode;
             
             if (progressMode) {
-                // Esconder controles principais e mostrar controles de progresso
                 document.getElementById('controls').style.display = 'none';
                 document.getElementById('filterInfo').style.display = 'none';
                 document.getElementById('progressControls').style.display = 'flex';
                 document.getElementById('progressViewBtn').style.display = 'none';
                 
-                // Inicializar controles de progresso
                 initializeProgressControls();
-                
-                // Mostrar visualização de progresso
                 updateVisualization();
             } else {
-                // Voltar para visualização normal
                 document.getElementById('controls').style.display = 'flex';
                 document.getElementById('filterInfo').style.display = 'block';
                 document.getElementById('progressControls').style.display = 'none';
@@ -1078,7 +1052,6 @@
             const monthSelect = document.getElementById('referenceMonth');
             monthSelect.innerHTML = '';
             
-            // Usar apenas o ano atual
             const currentYear = new Date().getFullYear();
             const months = new Set();
             
@@ -1088,12 +1061,10 @@
                 const endYear = task.endDate.getFullYear();
                 const endMonth = task.endDate.getMonth();
                 
-                // Iterar mês por mês, mas apenas para o ano atual
                 let currentYearIter = startYear;
                 let currentMonth = startMonth;
                 
                 while (currentYearIter < endYear || (currentYearIter === endYear && currentMonth <= endMonth)) {
-                    // Apenas adicionar meses do ano atual
                     if (currentYearIter === currentYear) {
                         const monthKey = `${currentYearIter}-${String(currentMonth + 1).padStart(2, '0')}`;
                         months.add(monthKey);
@@ -1107,7 +1078,6 @@
                 }
             });
             
-            // Ordenar e adicionar ao select
             const sortedMonths = Array.from(months).sort();
             sortedMonths.forEach(month => {
                 const option = document.createElement('option');
@@ -1119,13 +1089,11 @@
                 monthSelect.appendChild(option);
             });
             
-            // Selecionar o mês atual
             const today = new Date();
             const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
             if (sortedMonths.includes(currentMonthKey)) {
                 monthSelect.value = currentMonthKey;
             } else {
-                // Encontrar o primeiro mês futuro no ano atual
                 const futureMonth = sortedMonths.find(m => m >= currentMonthKey);
                 if (futureMonth) {
                     monthSelect.value = futureMonth;
@@ -1143,22 +1111,17 @@
         // Atualizar cálculos de progresso
         function updateProgressCalculations() {
             referenceMonth = document.getElementById('referenceMonth').value;
-            
-            // Processar dados com novo mês de referência
             processData();
             updateVisualization();
         }
 
         // Processar dados
         function processData() {
-            // Usar o período original completo
             const startDate = new Date(originalDateRange.start);
             const endDate = new Date(originalDateRange.end);
             
-            // Criar estrutura de dados por período
             const dataByPeriod = {};
             
-            // Iterar por cada dia no range
             const currentDate = new Date(startDate);
             while (currentDate <= endDate) {
                 const dateKey = currentDate.toISOString().split('T')[0];
@@ -1243,10 +1206,7 @@
                 }
             });
 
-            // Sempre agrupar por semana
             processedData = groupByWeek(dataByPeriod);
-
-            // Processar dados de progresso por projeto
             processProjectProgress();
         }
 
@@ -1255,7 +1215,6 @@
             const projects = {};
             const currentYear = new Date().getFullYear();
 
-            // Agrupar tarefas por projeto
             tasksData.forEach(task => {
                 if (!projects[task.Project]) {
                     projects[task.Project] = {
@@ -1277,14 +1236,12 @@
                 projects[task.Project].tasks.push(task);
                 projects[task.Project].totalEffort += task.Effort;
 
-                // Verificar se a tarefa tem atividade no ano atual
                 const taskHasCurrentYearActivity = (
                     task.startDate.getFullYear() <= currentYear && 
                     task.endDate.getFullYear() >= currentYear
                 );
 
                 if (taskHasCurrentYearActivity) {
-                    // Calcular proporção da tarefa que acontece no ano atual
                     const yearStart = new Date(currentYear, 0, 1);
                     const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
                     
@@ -1307,7 +1264,6 @@
                         projects[task.Project].remainingEffortCurrentYear += effortInCurrentYear;
                     }
                 } else {
-                    // Tarefa fora do ano atual
                     if (task.Completed) {
                         projects[task.Project].completedTasks.push(task);
                         projects[task.Project].completedEffort += task.Effort;
@@ -1318,9 +1274,7 @@
                 }
             });
 
-            // Calcular distribuição mensal para cada projeto (apenas ano atual)
             Object.values(projects).forEach(project => {
-                // Criar estrutura mensal apenas para o ano atual
                 for (let month = 0; month < 12; month++) {
                     const monthKey = `${currentYear}-${String(month + 1).padStart(2, '0')}`;
                     project.monthlyDistribution[monthKey] = {
@@ -1330,12 +1284,10 @@
                     };
                 }
                 
-                // Distribuir esforço por mês (apenas ano atual)
                 project.tasks.forEach(task => {
                     const yearStart = new Date(currentYear, 0, 1);
                     const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
                     
-                    // Verificar se a tarefa tem intersecção com o ano atual
                     if (task.startDate <= yearEnd && task.endDate >= yearStart) {
                         const taskStartInYear = new Date(Math.max(task.startDate, yearStart));
                         const taskEndInYear = new Date(Math.min(task.endDate, yearEnd));
@@ -1343,7 +1295,6 @@
                         const totalTaskDays = Math.ceil((task.endDate - task.startDate) / (1000 * 60 * 60 * 24)) + 1;
                         const effortPerDay = task.Effort / totalTaskDays;
                         
-                        // Distribuir dia a dia no ano atual
                         const currentDate = new Date(taskStartInYear);
                         while (currentDate <= taskEndInYear) {
                             const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
@@ -1362,19 +1313,16 @@
                     }
                 });
                 
-                // Calcular percentuais baseados no ano atual
                 project.completedPercentage = project.totalEffortCurrentYear > 0 
                     ? (project.completedEffortCurrentYear / project.totalEffortCurrentYear) * 100 
                     : 0;
                     
-                // Aplicar percentual restante se em modo de progresso
                 if (progressMode && referenceMonth) {
                     const remainingPercentage = projectRemainingPercentages[project.name];
                     
                     if (remainingPercentage !== null && remainingPercentage !== undefined) {
                         project.remainingPercentage = remainingPercentage;
                         
-                        // Calcular novo total baseado no percentual restante (apenas ano atual)
                         const remainingFromReference = calculateRemainingFromReference(project, referenceMonth);
                         
                         if (remainingFromReference > 0 && remainingPercentage > 0) {
@@ -1385,7 +1333,6 @@
                             project.completedPercentageAdjusted = 100;
                         }
                     } else {
-                        // Calcular percentual padrão baseado no ano atual
                         const remainingFromReference = calculateRemainingFromReference(project, referenceMonth);
                         project.remainingPercentage = project.totalEffortCurrentYear > 0 
                             ? Math.round((remainingFromReference / project.totalEffortCurrentYear) * 100)
@@ -1396,16 +1343,15 @@
             });
 
             projectProgressData = Object.values(projects)
-                .filter(project => project.totalEffortCurrentYear > 0) // Apenas projetos com atividade no ano atual
+                .filter(project => project.totalEffortCurrentYear > 0)
                 .sort((a, b) => b.totalEffortCurrentYear - a.totalEffortCurrentYear);
         }
 
-        // Calcular esforço restante a partir do mês de referência (apenas ano atual)
+        // Calcular esforço restante a partir do mês de referência
         function calculateRemainingFromReference(project, referenceMonth) {
             let remaining = 0;
             const currentYear = new Date().getFullYear();
             
-            // Somar esforço restante de todos os meses >= referenceMonth no ano atual
             Object.entries(project.monthlyDistribution).forEach(([month, dist]) => {
                 const [year] = month.split('-');
                 if (parseInt(year) === currentYear && month >= referenceMonth) {
@@ -1414,72 +1360,6 @@
             });
             
             return remaining;
-        }
-
-        // Abrir modal de input de percentual
-        function openPercentageModal(projectName) {
-            const project = projectProgressData.find(p => p.name === projectName);
-            if (!project) return;
-            const currentYear = new Date().getFullYear();
-            
-            // Criar modal
-            const modalBackdrop = document.createElement('div');
-            modalBackdrop.className = 'modal-backdrop';
-            
-            const modal = document.createElement('div');
-            modal.className = 'progress-input-modal';
-            
-            // Usar o valor restante baseado no ano atual
-            const remainingPercentage = project.remainingPercentage !== null && project.remainingPercentage !== undefined
-                ? project.remainingPercentage
-                : Math.round((project.remainingEffortCurrentYear / project.totalEffortCurrentYear) * 100);
-            
-            modal.innerHTML = `
-                <div class="modal-title">${t('remaining-project-percentage', {year: currentYear, project: projectName})}</div>
-                <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
-                    ${t('inform-percentage', {year: currentYear})}
-                </p>
-                <input type="number" class="modal-input" id="modalPercentageInput" 
-                       value="${remainingPercentage}" min="0" max="100" step="1">
-                <p style="margin-bottom: 20px; color: #666; font-size: 12px;">
-                    ${t('completed-effort-year', {year: currentYear})} ${Math.round(project.completedEffortCurrentYear)} ${t('points')}<br>
-                    ${t('remaining-effort-year', {year: currentYear})} ${Math.round(calculateRemainingFromReference(project, referenceMonth))} ${t('points')}<br>
-                    ${t('total-planned-year', {year: currentYear})} ${Math.round(project.totalEffortCurrentYear)} ${t('points')}
-                </p>
-                <div class="modal-buttons">
-                    <button class="modal-button secondary" onclick="closePercentageModal()">${t('cancel')}</button>
-                    <button class="modal-button primary" onclick="savePercentage('${projectName}')">${t('save')}</button>
-                </div>
-            `;
-            
-            document.body.appendChild(modalBackdrop);
-            document.body.appendChild(modal);
-            
-            // Focar no input
-            document.getElementById('modalPercentageInput').focus();
-            document.getElementById('modalPercentageInput').select();
-        }
-
-        // Fechar modal
-        function closePercentageModal() {
-            const modal = document.querySelector('.progress-input-modal');
-            const backdrop = document.querySelector('.modal-backdrop');
-            if (modal) modal.remove();
-            if (backdrop) backdrop.remove();
-        }
-
-        // Salvar percentual
-        function savePercentage(projectName) {
-            const input = document.getElementById('modalPercentageInput');
-            const remainingPercentage = parseFloat(input.value) || 0;
-            
-            // Agora o valor inserido já é o percentual restante, não precisa converter
-            projectRemainingPercentages[projectName] = remainingPercentage;
-            closePercentageModal();
-            
-            // Reprocessar dados
-            processData();
-            updateVisualization();
         }
 
         // Agrupar por semana
@@ -1502,7 +1382,6 @@
                     };
                 }
 
-                // Somar esforços
                 Object.entries(data.byType).forEach(([type, typeData]) => {
                     if (!weeks[weekKey].byType[type]) {
                         weeks[weekKey].byType[type] = {
@@ -1586,7 +1465,6 @@
             const container = d3.select('#chart');
             const currentYear = new Date().getFullYear();
             
-            // Criar timeline unificada apenas para o ano atual
             const allMonths = new Set();
             projectProgressData.forEach(project => {
                 Object.keys(project.monthlyDistribution).forEach(month => {
@@ -1599,12 +1477,10 @@
             
             const globalMonths = Array.from(allMonths).sort();
             
-            // Criar cards de projeto
             projectProgressData.forEach(project => {
                 const projectCard = container.append('div')
                     .attr('class', 'project-card');
 
-                // Barra de progresso vertical (clicável)
                 const progressBar = projectCard.append('div')
                     .attr('class', 'project-progress-bar')
                     .on('click', () => openPercentageModal(project.name));
@@ -1620,11 +1496,9 @@
                     .attr('class', 'progress-text')
                     .text(Math.round(completedPercentage) + '%');
 
-                // Conteúdo do projeto
                 const content = projectCard.append('div')
                     .attr('class', 'project-content');
 
-                // Header
                 const header = content.append('div')
                     .attr('class', 'project-header');
 
@@ -1645,16 +1519,14 @@
                 stats.append('span')
                     .text(`${t('accomplished')}: ${Math.round(100 - (project.remainingPercentage || 100))}%`);
 
-                // Timeline chart
                 drawProjectTimeline(content, project, globalMonths);
             });
         }
 
-        // Desenhar timeline do projeto
+        // Desenhar timeline do projeto (continuação da função anterior, implementação simplificada)
         function drawProjectTimeline(container, project, globalMonths) {
             const currentYear = new Date().getFullYear();
             
-            // Filtrar apenas os meses do ano atual que este projeto tem dados A PARTIR do mês de referência
             const projectMonthsWithData = [];
             Object.entries(project.monthlyDistribution).forEach(([month, dist]) => {
                 const [year] = month.split('-');
@@ -1664,7 +1536,6 @@
             });
             projectMonthsWithData.sort();
             
-            // Se não há dados futuros no ano atual, mostrar mensagem
             if (projectMonthsWithData.length === 0) {
                 container.append('p')
                     .style('padding', '20px')
@@ -1689,19 +1560,15 @@
             const g = svg.append('g')
                 .attr('transform', `translate(${margin.left},${margin.top})`);
 
-            // Preparar dados com percentuais baseados no ano atual
             const remainingPercentage = project.remainingPercentage || 0;
             
-            // Calcular o total de esforço restante REAL no ano atual
             let totalRemainingEffortCurrentYear = 0;
             projectMonthsWithData.forEach(month => {
                 totalRemainingEffortCurrentYear += project.monthlyDistribution[month].remaining;
             });
             
-            // Calcular o total implícito baseado no percentual informado (apenas ano atual)
             const impliedTotal = remainingPercentage > 0 ? (totalRemainingEffortCurrentYear / remainingPercentage) * 100 : totalRemainingEffortCurrentYear;
             
-            // Mapear TODOS os meses globais do ano atual, preenchendo com 0 os que não têm dados
             const monthlyData = globalMonths.map(month => {
                 const dist = project.monthlyDistribution[month];
                 
@@ -1731,13 +1598,11 @@
                 };
             });
 
-            // Escalas
             const x = d3.scaleBand()
                 .domain(globalMonths)
                 .range([0, width])
                 .padding(0.1);
 
-            // Calcular escala Y máxima global para todos os projetos do ano atual
             let globalMaxPercentage = 0;
             projectProgressData.forEach(proj => {
                 const projRemainingPercentage = proj.remainingPercentage || 0;
@@ -1767,7 +1632,6 @@
                 .domain([0, Math.max(globalMaxPercentage * 1.1, 5)])
                 .range([height, 0]);
 
-            // Eixo X
             g.append('g')
                 .attr('class', 'axis')
                 .attr('transform', `translate(0,${height})`)
@@ -1783,12 +1647,10 @@
                 .style('font-size', '12px')
                 .style('fill', '#373737');
 
-            // Barras empilhadas
             const bars = g.selectAll('.month-bar')
                 .data(monthlyData)
                 .enter().append('g');
 
-            // Barra de esforço concluído (base, em turquesa)
             bars.append('rect')
                 .attr('class', 'month-bar-completed')
                 .attr('x', d => x(d.month))
@@ -1818,7 +1680,6 @@
                     document.getElementById('tooltip').style.display = 'none';
                 });
 
-            // Barra de esforço restante (empilhada acima da turquesa, em roxo)
             bars.append('rect')
                 .attr('class', 'month-bar-remaining') 
                 .attr('x', d => x(d.month))
@@ -1848,7 +1709,6 @@
                     document.getElementById('tooltip').style.display = 'none';
                 });
 
-            // Labels nas barras
             bars.append('text')
                 .attr('x', d => x(d.month) + x.bandwidth() / 2)
                 .attr('y', d => d.totalPercentage > 0 ? y(d.totalPercentage) - 5 : y(0) - 5)
@@ -1857,6 +1717,67 @@
                 .style('font-weight', '600')
                 .style('fill', '#373737')
                 .text(d => d.totalPercentage > 0.5 ? d.totalPercentage.toFixed(0) + '%' : '');
+        }
+
+        // Abrir modal de input de percentual
+        function openPercentageModal(projectName) {
+            const project = projectProgressData.find(p => p.name === projectName);
+            if (!project) return;
+            const currentYear = new Date().getFullYear();
+            
+            const modalBackdrop = document.createElement('div');
+            modalBackdrop.className = 'modal-backdrop';
+            
+            const modal = document.createElement('div');
+            modal.className = 'progress-input-modal';
+            
+            const remainingPercentage = project.remainingPercentage !== null && project.remainingPercentage !== undefined
+                ? project.remainingPercentage
+                : Math.round((project.remainingEffortCurrentYear / project.totalEffortCurrentYear) * 100);
+            
+            modal.innerHTML = `
+                <div class="modal-title">${t('remaining-project-percentage', {year: currentYear, project: projectName})}</div>
+                <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                    ${t('inform-percentage', {year: currentYear})}
+                </p>
+                <input type="number" class="modal-input" id="modalPercentageInput" 
+                       value="${remainingPercentage}" min="0" max="100" step="1">
+                <p style="margin-bottom: 20px; color: #666; font-size: 12px;">
+                    ${t('completed-effort-year', {year: currentYear})} ${Math.round(project.completedEffortCurrentYear)} ${t('points')}<br>
+                    ${t('remaining-effort-year', {year: currentYear})} ${Math.round(calculateRemainingFromReference(project, referenceMonth))} ${t('points')}<br>
+                    ${t('total-planned-year', {year: currentYear})} ${Math.round(project.totalEffortCurrentYear)} ${t('points')}
+                </p>
+                <div class="modal-buttons">
+                    <button class="modal-button secondary" onclick="closePercentageModal()">${t('cancel')}</button>
+                    <button class="modal-button primary" onclick="savePercentage('${projectName}')">${t('save')}</button>
+                </div>
+            `;
+            
+            document.body.appendChild(modalBackdrop);
+            document.body.appendChild(modal);
+            
+            document.getElementById('modalPercentageInput').focus();
+            document.getElementById('modalPercentageInput').select();
+        }
+
+        // Fechar modal
+        function closePercentageModal() {
+            const modal = document.querySelector('.progress-input-modal');
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (modal) modal.remove();
+            if (backdrop) backdrop.remove();
+        }
+
+        // Salvar percentual
+        function savePercentage(projectName) {
+            const input = document.getElementById('modalPercentageInput');
+            const remainingPercentage = parseFloat(input.value) || 0;
+            
+            projectRemainingPercentages[projectName] = remainingPercentage;
+            closePercentageModal();
+            
+            processData();
+            updateVisualization();
         }
 
         // Desenhar gráfico de barras empilhadas
@@ -1873,7 +1794,39 @@
             const g = svg.append('g')
                 .attr('transform', `translate(${margin.left},${margin.top})`);
 
-            const filteredData = processedData;
+            // Filtrar dados visíveis
+            const filteredData = processedData.map(d => {
+                const filtered = {
+                    date: d.date,
+                    byType: {},
+                    byAssignee: {},
+                    byProject: {},
+                    total: 0,
+                    days: d.days
+                };
+
+                if (currentGroupingCategory === 'type') {
+                    Object.entries(d.byType).forEach(([type, data]) => {
+                        if (visibleCategories[type]) {
+                            filtered.byType[type] = data;
+                            filtered.total += data.effort;
+                        }
+                    });
+                    filtered.byAssignee = d.byAssignee;
+                    filtered.byProject = d.byProject;
+                } else {
+                    Object.entries(d.byAssignee).forEach(([assignee, data]) => {
+                        if (visibleCategories[assignee]) {
+                            filtered.byAssignee[assignee] = data;
+                            filtered.total += data.effort;
+                        }
+                    });
+                    filtered.byType = d.byType;
+                    filtered.byProject = d.byProject;
+                }
+
+                return filtered;
+            });
 
             // Escalas
             const x = d3.scaleBand()
@@ -1893,12 +1846,11 @@
                     .tickFormat('')
                 );
 
-            // Eixo X customizado com 3 níveis: semanas, meses e anos
+            // Eixo X customizado com 3 níveis
             const xAxis = g.append('g')
                 .attr('class', 'axis')
                 .attr('transform', `translate(0,${height})`);
 
-            // Eixo para semanas com indicação de mês e ano
             const weeks = filteredData.map((d, i) => ({
                 date: d.date,
                 index: i,
@@ -1907,7 +1859,6 @@
                 year: d.date.getFullYear()
             }));
 
-            // Linha do eixo principal
             xAxis.append('line')
                 .attr('x1', 0)
                 .attr('x2', width)
@@ -1915,11 +1866,9 @@
                 .attr('y2', 0)
                 .attr('stroke', '#ddd');
 
-            // Ticks e labels das semanas (nível 1)
             weeks.forEach((week, i) => {
                 const xPos = x(week.date) + x.bandwidth() / 2;
                 
-                // Tick mark
                 xAxis.append('line')
                     .attr('x1', xPos)
                     .attr('x2', xPos)
@@ -1927,7 +1876,6 @@
                     .attr('y2', 6)
                     .attr('stroke', '#ddd');
                 
-                // Label da semana (número apenas)
                 xAxis.append('text')
                     .attr('x', xPos)
                     .attr('y', 15)
@@ -1937,7 +1885,6 @@
                     .text(week.weekNum);
             });
 
-            // Adicionar labels de mês (nível 2)
             let currentMonth = '';
             weeks.forEach((week, i) => {
                 const monthName = translateMonth(week.month, true);
@@ -1947,7 +1894,6 @@
                     currentMonth = monthYear;
                     const xPos = x(week.date);
                     
-                    // Criar grupo clicável para o mês
                     const monthGroup = xAxis.append('g')
                         .style('cursor', 'pointer')
                         .on('click', function() {
@@ -1973,14 +1919,12 @@
                 }
             });
 
-            // Adicionar labels de ano (nível 3)
             let processedYears = new Set();
             weeks.forEach((week, i) => {
                 if (!processedYears.has(week.year)) {
                     processedYears.add(week.year);
                     const xPos = x(week.date);
                     
-                    // Criar grupo clicável para o ano
                     const yearGroup = xAxis.append('g')
                         .style('cursor', 'pointer')
                         .on('click', function() {
@@ -2006,7 +1950,6 @@
                 }
             });
 
-            // Label "Semanas"
             xAxis.append('text')
                 .attr('x', -40)
                 .attr('y', 15)
@@ -2018,7 +1961,6 @@
                 .attr('class', 'axis')
                 .call(d3.axisLeft(y));
 
-            // Label do eixo Y
             g.append('text')
                 .attr('transform', 'rotate(-90)')
                 .attr('y', 0 - margin.left)
@@ -2029,25 +1971,17 @@
                 .style('fill', '#666')
                 .text(t('effort-label'));
 
-            // Preparar dados para empilhamento
+            // Preparar categorias visíveis
             let categories;
             let colors;
             
             if (currentGroupingCategory === 'type') {
-                categories = [...new Set(tasksData.map(t => t.Type))].sort();
+                categories = Object.keys(visibleCategories).filter(k => visibleCategories[k] && typeColors[k]).sort();
                 colors = typeColors;
             } else {
-                const allAssignees = [...new Set(tasksData.map(task => {
-                    const originalAssignee = task.Assignee;
-                    const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
-                    return simplifiedAssignee ? simplifiedAssignee : `${t('unassigned')} / ${task.Type}`;
-                }))];
-                
-                // Separar pessoas reais dos "Não atribuído"/"Unassigned"
+                const allAssignees = Object.keys(visibleCategories).filter(k => visibleCategories[k] && assigneeColors[k]);
                 const realPeople = allAssignees.filter(a => !a.includes(t('unassigned'))).sort();
                 const unassigned = allAssignees.filter(a => a.includes(t('unassigned'))).sort();
-                
-                // Colocar pessoas primeiro, depois "Não atribuído"
                 categories = [...realPeople, ...unassigned];
                 colors = assigneeColors;
             }
@@ -2087,7 +2021,7 @@
                                     toggleProjectSelection(project);
                                 })
                                 .on('mouseover', function(event) {
-                                    showTooltip(event, d, category, project);
+                                    showTooltip(event, processedData.find(pd => pd.date.getTime() === d.date.getTime()), category, project);
                                     if (!selectedProject) {
                                         highlightProject(project);
                                     }
@@ -2105,7 +2039,6 @@
                 });
             });
 
-            // Adicionar linha do dia de hoje
             addTodayLine(g, filteredData, x, height);
         }
 
@@ -2115,20 +2048,12 @@
             let colors;
             
             if (currentGroupingCategory === 'type') {
-                categories = [...new Set(tasksData.map(t => t.Type))].sort();
+                categories = Object.keys(visibleCategories).filter(k => visibleCategories[k] && typeColors[k]).sort();
                 colors = typeColors;
             } else {
-                const allAssignees = [...new Set(tasksData.map(task => {
-                    const originalAssignee = task.Assignee;
-                    const simplifiedAssignee = originalAssignee ? simplifyAssignee(originalAssignee) : null;
-                    return simplifiedAssignee ? simplifiedAssignee : `${t('unassigned')} / ${task.Type}`;
-                }))];
-                
-                // Separar pessoas reais dos "Não atribuído"/"Unassigned"
+                const allAssignees = Object.keys(visibleCategories).filter(k => visibleCategories[k] && assigneeColors[k]);
                 const realPeople = allAssignees.filter(a => !a.includes(t('unassigned'))).sort();
                 const unassigned = allAssignees.filter(a => a.includes(t('unassigned'))).sort();
-                
-                // Colocar pessoas primeiro, depois "Não atribuído"
                 categories = [...realPeople, ...unassigned];
                 colors = assigneeColors;
             }
@@ -2137,7 +2062,6 @@
             const width = 1300 - margin.left - margin.right;
             const heightPerChart = 150;
 
-            // Calcular escala Y global (igual para todos os gráficos)
             let globalMaxEffort = 0;
             categories.forEach(category => {
                 const categoryData = processedData.map(d => {
@@ -2162,7 +2086,6 @@
                 const g = svg.append('g')
                     .attr('transform', `translate(${margin.left},${margin.top})`);
 
-                // Título
                 g.append('text')
                     .attr('x', 0)
                     .attr('y', -5)
@@ -2171,7 +2094,6 @@
                     .style('fill', colors[category] || '#999')
                     .text(category);
 
-                // Dados filtrados
                 const categoryData = processedData.map(d => {
                     const dataForCategory = currentGroupingCategory === 'type' ? d.byType[category] : d.byAssignee[category];
                     return {
@@ -2181,13 +2103,11 @@
                     };
                 });
 
-                // Escalas
                 const x = d3.scaleBand()
                     .domain(categoryData.map(d => d.date))
                     .range([0, width])
                     .padding(0.1);
 
-                // Grid
                 g.append('g')
                     .attr('class', 'grid')
                     .call(d3.axisLeft(globalY)
@@ -2196,7 +2116,6 @@
                         .ticks(4)
                     );
 
-                // Linhas de referência para 7 e 10 (apenas para visualização por pessoa)
                 if (currentGroupingCategory === 'assignee' && globalMaxEffort >= 7) {
                     g.append('line')
                         .attr('class', 'reference-line')
@@ -2227,12 +2146,10 @@
                         .text('100%');
                 }
 
-                // Eixo X completo em todos os gráficos
                 const xAxis = g.append('g')
                     .attr('class', 'axis')
                     .attr('transform', `translate(0,${heightPerChart})`);
 
-                // Eixo para semanas - 3 níveis em todos os gráficos
                 const weeks = categoryData.map((d, i) => ({
                     date: d.date,
                     index: i,
@@ -2241,7 +2158,6 @@
                     year: d.date.getFullYear()
                 }));
 
-                // Linha do eixo principal
                 xAxis.append('line')
                     .attr('x1', 0)
                     .attr('x2', width)
@@ -2249,7 +2165,6 @@
                     .attr('y2', 0)
                     .attr('stroke', '#ddd');
 
-                // Nível 1: Semanas
                 weeks.forEach((week, i) => {
                     const xPos = x(week.date) + x.bandwidth() / 2;
                     
@@ -2269,7 +2184,6 @@
                         .text(week.weekNum);
                 });
 
-                // Nível 2: Meses
                 let currentMonth = '';
                 weeks.forEach((week, i) => {
                     const monthName = translateMonth(week.month, true);
@@ -2304,7 +2218,6 @@
                     }
                 });
 
-                // Nível 3: Anos
                 let processedYears = new Set();
                 weeks.forEach((week, i) => {
                     if (!processedYears.has(week.year)) {
@@ -2347,7 +2260,6 @@
                     .attr('class', 'axis')
                     .call(d3.axisLeft(globalY).ticks(4));
 
-                // Barras
                 g.selectAll('.bar')
                     .data(categoryData)
                     .enter().each(function(d) {
@@ -2400,7 +2312,6 @@
                         }
                     });
 
-                // Adicionar linha do hoje em cada gráfico
                 addTodayLine(g, categoryData, x, heightPerChart);
             });
         }
@@ -2410,7 +2321,6 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             
-            // Para vista semanal, encontrar a semana que contém hoje
             const todayInRange = data.find(d => {
                 const weekStart = getWeekStart(d.date);
                 const weekEnd = new Date(weekStart);
@@ -2436,7 +2346,6 @@
                     .attr('stroke-dasharray', '5,5')
                     .style('pointer-events', 'none');
                 
-                // Label "Hoje"
                 g.append('text')
                     .attr('x', todayX + 5)
                     .attr('y', 15)
@@ -2560,7 +2469,7 @@
             document.getElementById('tooltip').style.display = 'none';
         }
 
-        // Atualizar legenda
+        // Atualizar legenda com funcionalidade de toggle
         function updateLegend() {
             const legend = document.getElementById('legend');
             legend.innerHTML = '';
@@ -2586,22 +2495,26 @@
                     return simplifiedAssignee ? simplifiedAssignee : `${t('unassigned')} / ${task.Type}`;
                 }))];
                 
-                // Separar pessoas reais dos "Não atribuído"/"Unassigned"
                 const realPeople = allAssignees.filter(a => !a.includes(t('unassigned'))).sort();
                 const unassigned = allAssignees.filter(a => a.includes(t('unassigned'))).sort();
-                
-                // Colocar pessoas primeiro, depois "Não atribuído"
                 items = [...realPeople, ...unassigned];
                 colors = assigneeColors;
             }
 
             items.forEach(item => {
+                const isVisible = visibleCategories[item];
+                
                 const legendItem = document.createElement('div');
                 legendItem.className = 'legend-item';
+                if (!isVisible) {
+                    legendItem.classList.add('inactive');
+                }
+                
                 legendItem.innerHTML = `
                     <div class="legend-color" style="background: ${colors[item] || '#999'}"></div>
                     <span>${item}</span>
                 `;
+                
                 legendItem.onclick = () => toggleLegendItem(item);
                 legend.appendChild(legendItem);
             });
@@ -2609,7 +2522,16 @@
 
         // Toggle item da legenda
         function toggleLegendItem(item) {
-            console.log('Item clicado:', item);
+            // Apenas permitir toggle para visualização por pessoa
+            if (currentGroupingCategory !== 'assignee') {
+                return;
+            }
+
+            // Toggle visibilidade
+            visibleCategories[item] = !visibleCategories[item];
+            
+            // Redesenhar visualização
+            updateVisualization();
         }
 
         // Resetar para período completo
@@ -2625,7 +2547,6 @@
             const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
             const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
             
-            // Filtrar processedData para apenas este mês
             const filteredData = processedData.filter(d => {
                 return d.date >= monthStart && d.date <= monthEnd;
             });
@@ -2641,7 +2562,6 @@
             const yearStart = new Date(year, 0, 1);
             const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
             
-            // Filtrar processedData para apenas este ano
             const filteredData = processedData.filter(d => {
                 return d.date >= yearStart && d.date <= yearEnd;
             });
