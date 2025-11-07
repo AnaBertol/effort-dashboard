@@ -812,16 +812,26 @@
         let projectRemainingPercentages = {};
         let visibleCategories = {}; // Controla quais categorias estão visíveis
         
-        // Cores por tipo - DEFINITIVAS
-        const typeColors = {
-            'Graphic Design': '#6CDADE',           // Azul claro
-            'Data Analysis & Dataviz': '#6F02FD',  // Roxo principal
-            'Development & Tech': '#3570DF',       // Azul
-            'Strategic Consulting': '#666666',     // Cinza
-            'Project Management': '#EDFF19',       // Amarelo
-            'UX & UI Design': '#FFA4E8',          // Rosa
-            'UX/UI Design': '#FFA4E8'             // Rosa (caso alternativo)
+        // Cores específicas para tipos conhecidos
+        const specificTypeColors = {
+            'Graphic Design': '#6CDADE',
+            'Data Analysis & Dataviz': '#6F02FD',
+            'Development & Tech': '#3570DF',
+            'Strategic Consulting': '#666666',
+            'Project Management': '#EDFF19',
+            'UX & UI Design': '#FFA4E8',
+            'UX/UI Design': '#FFA4E8'
         };
+
+        // Paleta de cores para novos tipos
+        const typeColorPalette = [
+            '#6CDADE', '#6F02FD', '#3570DF', '#FFA4E8', '#666666', '#EDFF19',
+            '#2C0165', '#FF6B6B', '#4ECDC4', '#45B7D1', '#E6B800', '#BB8FCE',
+            '#52BE80', '#F39C12', '#E74C3C', '#3498DB', '#9B59B6'
+        ];
+
+        // Cores para tipos (será populado dinamicamente)
+        let typeColors = {};
 
         // Cores para pessoas
         let assigneeColors = {};
@@ -983,6 +993,23 @@
                 task.Completed = task.Completed === true || task.Completed === 'TRUE' || task.Completed === 1;
             });
 
+            // Detectar e atribuir cores para tipos dinamicamente
+            const uniqueTypes = [...new Set(tasksData.map(t => t.Type))].sort();
+            let typeColorIndex = 0;
+            
+            uniqueTypes.forEach(type => {
+                // Se é um tipo conhecido, usar cor específica
+                if (specificTypeColors[type]) {
+                    typeColors[type] = specificTypeColors[type];
+                } else {
+                    // Se é um tipo novo, atribuir cor da paleta
+                    typeColors[type] = typeColorPalette[typeColorIndex % typeColorPalette.length];
+                    typeColorIndex++;
+                }
+                // Inicializar como visível
+                visibleCategories[type] = true;
+            });
+
             // Atribuir cores sequencialmente para pessoas
             const uniqueAssignees = [...new Set(tasksData.map(task => {
                 const originalAssignee = task.Assignee;
@@ -1000,11 +1027,6 @@
                 }
                 // Inicializar todos como visíveis
                 visibleCategories[assignee] = true;
-            });
-
-            // Inicializar tipos como visíveis
-            Object.keys(typeColors).forEach(type => {
-                visibleCategories[type] = true;
             });
 
             // Encontrar range de datas
@@ -2522,12 +2544,7 @@
 
         // Toggle item da legenda
         function toggleLegendItem(item) {
-            // Apenas permitir toggle para visualização por pessoa
-            if (currentGroupingCategory !== 'assignee') {
-                return;
-            }
-
-            // Toggle visibilidade
+            // Toggle visibilidade (funciona tanto para tipo quanto para pessoa)
             visibleCategories[item] = !visibleCategories[item];
             
             // Redesenhar visualização
