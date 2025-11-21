@@ -508,9 +508,14 @@
             <div style="font-size: 14px; color: #666;" id="upload-subtitle">Arraste o arquivo aqui ou clique para selecionar</div>
         </div>
 
-        <button class="progress-button" id="progressViewBtn" onclick="toggleProgressView()" style="display: none;">
-            <span id="progress-btn-text">📈 Visualizar Progresso por Projeto</span>
-        </button>
+        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+            <button class="progress-button" id="progressViewBtn" onclick="toggleProgressView()" style="display: none;">
+                <span id="progress-btn-text">📈 Visualizar Progresso por Projeto</span>
+            </button>
+            <button class="progress-button" id="exportBtn" onclick="exportToExcel()" style="display: none; background: #3570DF;">
+                <span id="export-btn-text">📊 Exportar Dados para Excel</span>
+            </button>
+        </div>
 
         <div class="controls" id="controls" style="display: none;">
             <div class="control-group">
@@ -1042,6 +1047,7 @@
             document.getElementById('filterInfo').style.display = 'block';
             document.getElementById('visualizationContainer').classList.add('active');
             document.getElementById('progressViewBtn').style.display = 'block';
+            document.getElementById('exportBtn').style.display = 'block';
 
             processData();
             updateVisualization();
@@ -2603,6 +2609,109 @@
             document.getElementById('assigneeBtn').classList.toggle('active', category === 'assignee');
             processData();
             updateVisualization();
+        }
+
+        // Função para exportar dados para Excel
+        function exportToExcel() {
+            // Agrupar dados por mês, projeto e tipo (especialidade)
+            const monthlyData = {};
+            
+            tasksData.forEach(task => {
+                const taskStart = new Date(task.startDate);
+                const taskEnd = new Date(task.endDate);
+                
+                // Iterar por cada dia da tarefa
+                const currentDate = new Date(taskStart);
+                while (currentDate <= taskEnd) {
+                    const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                    const project = task.Project || 'Sem projeto';
+                    const type = task.Type || 'Sem tipo';
+                    
+                    if (!monthlyData[monthKey]) {
+                        monthlyData[monthKey] = {};
+                    }
+                    if (!monthlyData[monthKey][project]) {
+                        monthlyData[monthKey][project] = {};
+                    }
+                    if (!monthlyData[monthKey][project][type]) {
+                        monthlyData[monthKey][project][type] = 0;
+                    }
+                    
+                    // Adicionar esforço do dia (em pontos)
+                    monthlyData[monthKey][project][type] += task.effortPerDay;
+                    
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+            });
+            
+            // Converter para formato CSV
+            const rows = [];
+            const dateLabel = 'Data';
+            const monthLabel = t('month') || 'Mês';
+            const projectLabel = t('project') || 'Projeto';
+            const specialtyLabel = t('specialty') || 'Especialidade';
+            const pointsLabel = t('points') || 'pontos';
+            const hoursLabel = t('hours') || 'horas';
+            
+            rows.push([dateLabel, monthLabel, projectLabel, specialtyLabel, pointsLabel, hoursLabel]);
+            
+            // Ordenar meses
+            const sortedMonths = Object.keys(monthlyData).sort();
+            
+            sortedMonths.forEach(monthKey => {
+                const [year, month] = monthKey.split('-');
+                const date = new Date(year, parseInt(month) - 1, 1);
+                
+                // Data no formato DD/MM/YYYY (primeiro dia do mês)
+                const dateForExcel = `01/${month}/${year}`;
+                
+                const monthName = date.toLocaleDateString(currentLanguage === 'pt-br' ? 'pt-BR' : 'en-US', { 
+                    month: 'long', 
+                    year: 'numeric' 
+                });
+                
+                const projects = monthlyData[monthKey];
+                Object.keys(projects).sort().forEach(project => {
+                    const types = projects[project];
+                    Object.keys(types).sort().forEach(type => {
+                        const points = types[type];
+                        const hours = points * 3; // 1 ponto = 3 horas
+                        rows.push([dateForExcel, monthName, project, type, points.toFixed(2), hours.toFixed(2)]);
+                    });
+                });
+            });
+            
+            // Criar CSV
+            let csvContent = '';
+            rows.forEach(row => {
+                csvContent += row.map(cell => {
+                    // Escapar aspas duplas e adicionar aspas se contiver vírgula
+                    const cellStr = String(cell).replace(/"/g, '""');
+                    return cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n') 
+                        ? `"${cellStr}"` 
+                        : cellStr;
+                }).join(',') + '\n';
+            });
+            
+            // Adicionar BOM para UTF-8 (para Excel abrir corretamente)
+            const BOM = '\uFEFF';
+            csvContent = BOM + csvContent;
+            
+            // Criar e baixar arquivo
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            const currentDate = new Date();
+            const dateStr = currentDate.toISOString().split('T')[0];
+            const filename = `effort_data_${dateStr}.csv`;
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
     </script>
 </body>
